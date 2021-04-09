@@ -2,6 +2,11 @@
 # 此 .gitignore 文件已由 Microsoft(R) Visual Studio 自动创建。
 ################################################################################
 
-/AccessToken/.vs/
-/AccessToken/Release/
-/AccessToken/Debug/
+/AccessToken/version1/.vs/
+/AccessToken/version1/Release/
+/AccessToken/version1/Debug/
+/AccessToken/version1/x64/
+/AccessToken/version2/.vs/
+/AccessToken/version2/Release/
+/AccessToken/version2/Debug/
+/AccessToken/version2/x64/
