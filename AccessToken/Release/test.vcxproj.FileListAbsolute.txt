@@ -1,2 +1,0 @@
-C:\Data\Project\test\Release\AccessToken.exe
-C:\Data\Project\AccessToken\Release\AccessToken.exe
