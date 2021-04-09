@@ -64,7 +64,7 @@ VOID RetPrivDwordAttributesToStr(DWORD attributes, LPTSTR szAttrbutes)
 		wsprintf(szAttrbutes, TEXT("Disabled"));
 	return;
 }
-BOOL get_domain_username_from_token(HANDLE token, char* full_name_to_return)
+BOOL GetDomainUsernameFromToken(HANDLE token, char* full_name_to_return)
 {
 	LPVOID TokenUserInfo[BUF_SIZE];
 	char username[BUF_SIZE], domainname[BUF_SIZE];
@@ -76,18 +76,6 @@ BOOL get_domain_username_from_token(HANDLE token, char* full_name_to_return)
 
 	// Make full name in DOMAIN\USERNAME format
 	sprintf(full_name_to_return, "%s\\%s", domainname, username);
-	// 获取token中的账号
-	//char* username;
-	//get_domain_username_from_token(tok, username);
-	//printf("username: %s\n", username);
-	//PTOKEN_USER pTokenUser;
-	//dwRet = 0;
-	//GetTokenInformation(tok, TokenUser, pTokenUser, dwRet, &dwRet);
-	//if (GetTokenInformation(tok, TokenUser, pTokenUser, dwRet, &dwRet)) {
-	//	cout << "dwRet: " << dwRet << endl;
-	//	printf("SID: %s,%d\n", (char*)pTokenUser->User.Sid, pTokenUser->User.Sid);
-	//}
-
 	return TRUE;
 }
 BOOL GetTokenInfo(HANDLE tok) {
@@ -95,18 +83,20 @@ BOOL GetTokenInfo(HANDLE tok) {
 	DWORD dwRet=0;
 	//DWORD dwTokenSID;
 	PTOKEN_GROUPS_AND_PRIVILEGES pTokenGroupsAndPrivileges=NULL;
-	GetTokenInformation(tok, TokenGroupsAndPrivileges, pTokenGroupsAndPrivileges, dwRet, &dwRet);
+	GetTokenInformation(tok, TokenGroupsAndPrivileges, NULL, NULL, &dwRet);
 	if (dwRet == 0) {
 		return FALSE;
 	}
-	//cout << "dwRet: " << dwRet << endl;
-	pTokenGroupsAndPrivileges = (PTOKEN_GROUPS_AND_PRIVILEGES)calloc(dwRet, 1);
-	if (!GetTokenInformation(tok, TokenGroupsAndPrivileges, pTokenGroupsAndPrivileges, dwRet, &dwRet)) {
-		printf("ERROR: %d\n", GetLastError());
-		return FALSE;
+	else {
+		pTokenGroupsAndPrivileges = (PTOKEN_GROUPS_AND_PRIVILEGES)calloc(dwRet, 1);
+		if (!GetTokenInformation(tok, TokenGroupsAndPrivileges, pTokenGroupsAndPrivileges, dwRet, NULL)) {
+			printf("\tERROR: %d\n", GetLastError());
+			return FALSE;
+		}
+		else {
+			printf("\tAuthId: %08x-%08x\n", pTokenGroupsAndPrivileges->AuthenticationId.HighPart, pTokenGroupsAndPrivileges->AuthenticationId.LowPart);
+		}
 	}
-	printf("\tAuthId: %08x-%08x\n", pTokenGroupsAndPrivileges->AuthenticationId.HighPart, pTokenGroupsAndPrivileges->AuthenticationId.LowPart);
-
 	return TRUE;
 }
 int GetTokenPrivilege(HANDLE tok)
@@ -115,17 +105,17 @@ int GetTokenPrivilege(HANDLE tok)
 	DWORD error;
 	//char* tmpStr;
 	char tmpStr[BUF_SIZE] = { 0 };
-	get_domain_username_from_token(tok, tmpStr);
-	printf(" \tUser: %s\n", tmpStr);
+	GetDomainUsernameFromToken(tok, tmpStr);
+	printf(" \tTokenUser\t: %s\n", tmpStr);
 	
 	PTOKEN_PRIVILEGES ppriv = NULL;
 	DWORD dwRet = 0;
 	//BOOL tmp = GetTokenInformation(tok, TokenGroups, ppriv, dwRet, &dwRet);
-	GetTokenInformation(tok, TokenPrivileges, ppriv, dwRet, &dwRet);
+	GetTokenInformation(tok, TokenPrivileges, NULL, NULL, &dwRet);
 	if (!dwRet)
 		return 0;
 	ppriv = (PTOKEN_PRIVILEGES)calloc(dwRet, 1);
-	if (!GetTokenInformation(tok, TokenPrivileges, ppriv, dwRet, &dwRet)) {
+	if (!GetTokenInformation(tok, TokenPrivileges, ppriv, dwRet, NULL)) {
 		cout << " \t获取token信息失败，Error: " << GetLastError() << endl;
 		return FALSE;
 	}
@@ -175,20 +165,56 @@ int GetTokenPrivilege(HANDLE tok)
 	returned_tokinfo_length = 0;
 	if (GetTokenInformation(tok, TokenType, TokenType1, BUF_SIZE, &returned_tokinfo_length)) {
 		error = GetLastError();
-		printf(" \tTokenType: %d\n", *TokenType1);
+		printf(" \tTokenType\t: %d\n", *TokenType1);
 		switch ((int)*TokenType1) {
 		case 1:
-			printf(" \tTokenType: Primary Token\n\n");
+			printf(" \tTokenType\t: Primary Token\n\n");
 			break;
 		case 2:
-			printf(" \tTokenType: Impersonation Token\n\n");
+			printf(" \tTokenType\t: Impersonation Token\n\n");
 			break;
 		default:
-			printf(" \tTokenType: Error: %d\n\n",error);
+			printf(" \tTokenType\t: Error: %d\n\n",error);
 		}
 	}
 
 	return 1;
+}
+
+BOOL GetTokenTypeFromToken(HANDLE hToken) {
+	DWORD* pTokenTypeInfo;
+	DWORD dwRet = 0;
+	DWORD error;
+	GetTokenInformation(hToken, TokenType, NULL, NULL, &dwRet);
+	if (0 == dwRet) {
+		error = GetLastError();
+		printf(" \tTokenType\t: Error: %d\n\n", error);
+		return FALSE;
+	}
+
+	pTokenTypeInfo = (DWORD*)malloc(dwRet);
+	if (GetTokenInformation(hToken, TokenType, pTokenTypeInfo, dwRet, &dwRet)) {
+		error = GetLastError();
+		//printf(" \tTokenType: %d\n", (DWORD)*pTokenTypeInfo);
+		switch ((DWORD)*pTokenTypeInfo) {
+		case 1:
+			printf(" \tTokenType\t: Primary Token\n");
+			break;
+		case 2:
+			printf(" \tTokenType\t: Impersonation Token\n");
+			break;
+		default:
+			printf(" \tTokenType\t: Error: %d\n", error);
+			return FALSE;
+		}
+		return TRUE;
+	}
+	else {
+		error = GetLastError();
+		printf(" \t获取token中的令牌类型失败， Error: %d\n", error);
+		return FALSE;
+
+	}
 }
 
 BOOL EnablePriv(HANDLE hToken, LPCTSTR priv)
@@ -529,7 +555,28 @@ LPWSTR GetObjectInfo(HANDLE hObject, OBJECT_INFORMATION_CLASS objInfoClass)
 	return data;
 }
 
+BOOL GetTokenILFromToken(HANDLE hToken, DWORD* dwIL) {
+	HANDLE temp_token;
+	BOOL ret;
+	LPVOID TokenImpersonationInfo[BUF_SIZE];
+	PSECURITY_IMPERSONATION_LEVEL pTokenIL=NULL;
+	DWORD returned_tokinfo_length;
+	DWORD dwRet = 0;
+	// 获取令牌模拟等级信息，若获取到，则判断模拟等级是不是大于等于模拟
+	GetTokenInformation(hToken, TokenImpersonationLevel, pTokenIL, NULL, &dwRet);
+	pTokenIL = (PSECURITY_IMPERSONATION_LEVEL)malloc(dwRet);
+	if (GetTokenInformation(hToken, TokenImpersonationLevel, pTokenIL, dwRet, &dwRet)) {
+		*dwIL = *pTokenIL;
+		//printf("\t获取令牌中的模拟等级成功，%d\n", *dwIL);
+	}
+	else {
+		//printf("\t获取令牌中的模拟等级失败，ERROR: %d\n", GetLastError());
+		return FALSE;
+	}
+	return TRUE;
+}
 
+// 判断传进来的token能否被模拟
 BOOL is_impersonation_token(HANDLE token)
 {
 	HANDLE temp_token;
@@ -537,12 +584,14 @@ BOOL is_impersonation_token(HANDLE token)
 	LPVOID TokenImpersonationInfo[BUF_SIZE];
 	DWORD returned_tokinfo_length;
 	// 获取令牌模拟等级信息，若获取到，则判断模拟等级是不是大于等于模拟
-	if (GetTokenInformation(token, TokenImpersonationLevel, TokenImpersonationInfo, BUF_SIZE, &returned_tokinfo_length))
-		if (*((SECURITY_IMPERSONATION_LEVEL*)TokenImpersonationInfo) >= SecurityImpersonation)
+	DWORD dwTokenIL;
+	if (GetTokenILFromToken(token, &dwTokenIL)) {
+		if (dwTokenIL >= SecurityImpersonation)
 			return TRUE;
 		else
 			return FALSE;
-	// 若未获取到令牌等级信息，则尝试是否能够使用该令牌创建一个具有模拟等级的模拟令牌。根据创建的结果判断是不是模拟令牌
+	}
+	// 若未获取到令牌等级信息，则尝试是否能够使用该令牌创建一个具有模拟等级的模拟令牌。根据创建的结果判断能够模拟该令牌
 	ret = DuplicateTokenEx(token, TOKEN_ALL_ACCESS, NULL, SecurityImpersonation, TokenImpersonation, &temp_token);
 	CloseHandle(temp_token);
 	return ret;
@@ -550,9 +599,7 @@ BOOL is_impersonation_token(HANDLE token)
 
 BOOL EnumProcessB() {
 	NTSTATUS status;
-	//PSYSTEM_PROCESS_INFO pspi;
 	PSYSTEM_HANDLE_INFORMATION_EX pshi=(PSYSTEM_HANDLE_INFORMATION_EX)malloc(sizeof(SYSTEM_HANDLE_INFORMATION_EX));
-	//ULONG ReturnLength = 0;
 	NTQUERYSYSTEMINFORMATION NtQuerySystemInformation = (NTQUERYSYSTEMINFORMATION)GetProcAddress(GetModuleHandle(_T("NTDLL.DLL")), "NtQuerySystemInformation");
 	char tmpStr[BUF_SIZE] = { 0 };
 	DWORD dwRet=0;
@@ -572,10 +619,10 @@ BOOL EnumProcessB() {
 				// 输出句柄所在的进程ID
 				printf("ProcessId: %d\n", pshi->Information[r].ProcessId);
 				// 输出句柄类型
-				printf("\tHandleType: Token\n");
-				printf("\tToken in Process Handle: 0x%x\n", pshi->Information[r].Handle);
+				printf("\tHandleType\t: Token\n");
+				printf("\tHandleOffset\t: 0x%x\n", pshi->Information[r].Handle);
 				// 句柄对应的内核对象
-				printf("\t内核对象: 0x%p\n", pshi->Information[r].Object);
+				printf("\t内核对象\t\t: 0x%p\n", pshi->Information[r].Object);
 				// 打开进程句柄
 				hProc = OpenProcess(MAXIMUM_ALLOWED, FALSE, (DWORD)pshi->Information[r].ProcessId);
 				if (hProc == NULL) {
@@ -589,64 +636,53 @@ BOOL EnumProcessB() {
 				// 获取pid对应的进程名
 				TCHAR* tProcName;
 				if (GetProcessNameFromPid((DWORD)pshi->Information[r].ProcessId, &tProcName)) {
-					printf("\tProcessName: %S\n", tProcName);
+					printf("\tProcessName\t: %S\n", tProcName);
 				}
 				// 复制token句柄到当前进程的句柄表中
 				if (DuplicateHandle(hProc, (HANDLE)(pshi->Information[r].Handle),GetCurrentProcess(), &hObject, MAXIMUM_ALLOWED, FALSE, 0x02) != FALSE)
 				{
-					// 获取token中的用户名
-					get_domain_username_from_token(hObject, tmpStr);
-					printf(" \tUser: %s\n", tmpStr);
-					// 使用本进程的线程来模拟指定令牌
-					if (ImpersonateLoggedOnUser(hObject) == 0) {
-						printf("\t模拟令牌失败,ERROR: %d\n", GetLastError());
-						// 获取token中的登录会话ID
-						dwRet = 0;
-						PTOKEN_GROUPS_AND_PRIVILEGES pTokenGroupsAndPrivileges = NULL;
-						GetTokenInformation(hObject, TokenGroupsAndPrivileges, pTokenGroupsAndPrivileges, dwRet, &dwRet);
-						if (dwRet == 0) {
-							printf("\tdwreterror,ERROR: %d\n",GetLastError());
+					// 从token中获取登录会话ID
+					dwRet = 0;
+					PTOKEN_GROUPS_AND_PRIVILEGES pTokenGroupsAndPrivileges = NULL;
+					GetTokenInformation(hObject, TokenGroupsAndPrivileges, pTokenGroupsAndPrivileges, dwRet, &dwRet);
+					if (dwRet == 0) {
+						printf("\tdwreterror,ERROR: %d\n", GetLastError());
+						getchar();
+					}
+					else {
+						pTokenGroupsAndPrivileges = (PTOKEN_GROUPS_AND_PRIVILEGES)calloc(dwRet, 1);
+						if (!GetTokenInformation(hObject, TokenGroupsAndPrivileges, pTokenGroupsAndPrivileges, dwRet, &dwRet)) {
+							printf("\t获取令牌信息失败，ERROR: %d\n", GetLastError());
 						}
 						else {
-							pTokenGroupsAndPrivileges = (PTOKEN_GROUPS_AND_PRIVILEGES)calloc(dwRet, 1);
-							if (!GetTokenInformation(hObject, TokenGroupsAndPrivileges, pTokenGroupsAndPrivileges, dwRet, &dwRet)) {
-								printf("\t获取令牌信息失败，ERROR: %d\n", GetLastError());
-							}
-							else {
-								printf("\tAuthId: %08x-%08x\n", pTokenGroupsAndPrivileges->AuthenticationId.HighPart, pTokenGroupsAndPrivileges->AuthenticationId.LowPart);
-							}
+							printf("\tLogonId\t\t: %08x-%08x\n", pTokenGroupsAndPrivileges->AuthenticationId.HighPart, pTokenGroupsAndPrivileges->AuthenticationId.LowPart);
 						}
+					}
+					// 从token中获取用户名
+					GetDomainUsernameFromToken(hObject, tmpStr);
+					printf(" \tTokenUser\t: %s\n", tmpStr);
+					// 从token中获取令牌类型
+					GetTokenTypeFromToken(hObject);
+					// 使用本进程的线程来模拟令牌
+					if (ImpersonateLoggedOnUser(hObject) == 0) {
+						printf("\t本线程模拟令牌失败,ERROR: %d\n", GetLastError());
+						printf("\t\t该令牌不能够被模拟\n");
 						goto loopCon;
 					}
 					else {
-						printf("\t模拟令牌成功：\n");
+						printf("\t本线程模拟令牌成功：\n");
 						// 打开并获取令牌
 						OpenThreadToken(GetCurrentThread(), MAXIMUM_ALLOWED, TRUE, &hObject2);
 						// 返回到自己的安全上下文
 						RevertToSelf();
 						// 判断获取来的令牌是不是模拟令牌
-						if (is_impersonation_token(hObject2)) {
-							printf("\t确实模拟令牌\n");
-						}
-						else {
-							printf("\t非模拟令牌\n");
+						if (is_impersonation_token(hObject)) {
+							printf("\t\t该令牌能够被模拟\n");
 							getchar();
 						}
-						// 获取token中的登录会话ID
-						dwRet = 0;
-						PTOKEN_GROUPS_AND_PRIVILEGES pTokenGroupsAndPrivileges = NULL;
-						GetTokenInformation(hObject, TokenGroupsAndPrivileges, pTokenGroupsAndPrivileges, dwRet, &dwRet);
-						if (dwRet == 0) {
-							printf("\tdwreterror,ERROR: %d\n", GetLastError());
-						}
 						else {
-							pTokenGroupsAndPrivileges = (PTOKEN_GROUPS_AND_PRIVILEGES)calloc(dwRet, 1);
-							if (!GetTokenInformation(hObject, TokenGroupsAndPrivileges, pTokenGroupsAndPrivileges, dwRet, &dwRet)) {
-								printf("\t获取令牌信息失败，ERROR: %d\n", GetLastError());
-							}
-							else {
-								printf("\tAuthId: %08x-%08x\n", pTokenGroupsAndPrivileges->AuthenticationId.HighPart, pTokenGroupsAndPrivileges->AuthenticationId.LowPart);
-							}
+							printf("\t\t该令牌不能够被模拟\n");
+							getchar();
 						}
 					}
 				//}
