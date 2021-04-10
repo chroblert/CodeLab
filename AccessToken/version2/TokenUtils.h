@@ -18,6 +18,8 @@
 #pragma comment(lib,"Secur32.lib")
 #include "getopt.h"
 #include "logonSession.h"
+#pragma comment(lib,"ntdll.lib") 
+//#include "tidtest.cpp"
 
 #define STATUS_INFO_LENGTH_MISMATCH             ((NTSTATUS)0xC0000004L)
 #define STATUS_BUFFER_OVERFLOW                  ((NTSTATUS)0x80000005L)
@@ -162,7 +164,164 @@ typedef NTSTATUS(WINAPI* NTQUERYOBJECT)(HANDLE ObjectHandle,
 	DWORD Length,
 	PDWORD ResultLength);
 
+typedef struct _CLIENT_ID {
+    HANDLE UniqueProcess;
+    HANDLE UniqueThread;
+} CLIENT_ID, * PCLIENT_ID;
+
+typedef struct _OBJECT_ATTRIBUTES
+{
+    ULONG Length;
+    PVOID RootDirectory;
+    PUNICODE_STRING ObjectName;
+    ULONG Attributes;
+    PVOID SecurityDescriptor;
+    PVOID SecurityQualityOfService;
+} OBJECT_ATTRIBUTES, * POBJECT_ATTRIBUTES;
+
+
+typedef NTSTATUS(WINAPI* NTOPENPROCESS)(
+    OUT PHANDLE             ProcessHandle,
+    IN ACCESS_MASK          AccessMask,
+    IN POBJECT_ATTRIBUTES   ObjectAttributes,
+    IN PCLIENT_ID           ClientId
+    );
+
+typedef enum _PROCESS_INFORMATION_CLASSA {
+    ProcessBasicInformation = 0 ,
+    ProcessQuotaLimits,
+    ProcessIoCounters,
+    ProcessVmCounters,
+    ProcessTimes,
+    ProcessBasePriority,
+    ProcessRaisePriority,
+    ProcessDebugPort,
+    ProcessExceptionPort,
+    ProcessAccessToken,
+    ProcessLdtInformation,
+    ProcessLdtSize,
+    ProcessDefaultHardErrorMode,
+    ProcessIoPortHandlers,
+    ProcessPooledUsageAndLimits,
+    ProcessWorkingSetWatch,
+    ProcessUserModeIOPL,
+    ProcessEnableAlignmentFaultFixup,
+    ProcessPriorityClass,
+    ProcessWx86Information,
+    ProcessHandleCount,
+    ProcessAffinityMask,
+    ProcessPriorityBoost,
+    MaxProcessInfoClass
+} PROCESS_INFORMATION_CLASSA, * PPROCESS_INFORMATION_CLASSA;
+
+
+
+typedef struct _PEB_LDR_DATA {
+    BYTE       Reserved1[8];
+    PVOID      Reserved2[3];
+    LIST_ENTRY InMemoryOrderModuleList;
+} PEB_LDR_DATA, * PPEB_LDR_DATA;
+
+
+typedef struct _RTL_USER_PROCESS_PARAMETERS {
+    BYTE           Reserved1[16];
+    PVOID          Reserved2[10];
+    UNICODE_STRING ImagePathName;
+    UNICODE_STRING CommandLine;
+} RTL_USER_PROCESS_PARAMETERS, * PRTL_USER_PROCESS_PARAMETERS;
+
+typedef ULONG   PPS_POST_PROCESS_INIT_ROUTINE;
+
+typedef struct _PEB {
+    BYTE                          Reserved1[2];
+    BYTE                          BeingDebugged;
+    BYTE                          Reserved2[1];
+    PVOID                         Reserved3[2];
+    PPEB_LDR_DATA                 Ldr;
+    PRTL_USER_PROCESS_PARAMETERS  ProcessParameters;
+    PVOID                         Reserved4[3];
+    PVOID                         AtlThunkSListPtr;
+    PVOID                         Reserved5;
+    ULONG                         Reserved6;
+    PVOID                         Reserved7;
+    ULONG                         Reserved8;
+    ULONG                         AtlThunkSListPtr32;
+    PVOID                         Reserved9[45];
+    BYTE                          Reserved10[96];
+    PPS_POST_PROCESS_INIT_ROUTINE PostProcessInitRoutine;
+    BYTE                          Reserved11[128];
+    PVOID                         Reserved12[1];
+    ULONG                         SessionId;
+} PEB, * PPEB;
+
+typedef struct _PROCESS_BASIC_INFORMATIONA {
+    PVOID Reserved1;
+    PPEB PebBaseAddress;
+    PVOID Reserved2[2];
+    ULONG_PTR UniqueProcessId;
+    PVOID Reserved3;
+} PROCESS_BASIC_INFORMATIONA;
+
+typedef enum _THREAD_INFORMATION_CLASSA {
+    ThreadBasicInformation,
+    ThreadTimes,
+    ThreadPriority,
+    ThreadBasePriority,
+    ThreadAffinityMask,
+    ThreadImpersonationToken,
+    ThreadDescriptorTableEntry,
+    ThreadEnableAlignmentFaultFixup,
+    ThreadEventPair,
+    ThreadQuerySetWin32StartAddress,
+    ThreadZeroTlsCell,
+    ThreadPerformanceCount,
+    ThreadAmILastThread,
+    ThreadIdealProcessor,
+    ThreadPriorityBoost,
+    ThreadSetTlsArrayAddress,
+    ThreadIsIoPending,
+    ThreadHideFromDebugger
+} THREAD_INFORMATION_CLASSA, * PTHREAD_INFORMATION_CLASSA;
+
+#ifndef KPRIORITY
+typedef LONG KPRIORITY;
+#endif
+
+
+typedef struct _THREAD_BASIC_INFORMATION {
+    NTSTATUS                ExitStatus;
+    PVOID                   TebBaseAddress;
+    CLIENT_ID               ClientId;
+    KAFFINITY               AffinityMask;
+    KPRIORITY               Priority;
+    KPRIORITY               BasePriority;
+} THREAD_BASIC_INFORMATION, * PTHREAD_BASIC_INFORMATION;
+
+
+typedef NTSTATUS(WINAPI* NTQUERYINFORMATIONPROCESS)(
+    IN HANDLE               ProcessHandle,
+    IN PROCESS_INFORMATION_CLASSA ProcessInformationClass,
+    OUT PVOID               ProcessInformation,
+    IN ULONG                ProcessInformationLength,
+    OUT PULONG              ReturnLength);
+
+typedef NTSTATUS(WINAPI* NTQUERYINFORMATIONTHREAD)(
+    IN HANDLE               ThreadHandle,
+    IN THREAD_INFORMATION_CLASSA ThreadInformationClass,
+    OUT PVOID               ThreadInformation,
+    IN ULONG                ThreadInformationLength,
+    OUT PULONG              ReturnLength OPTIONAL);
+
+typedef NTSTATUS(WINAPI* NTOPENTHREADTOKEN)(
+    IN HANDLE               ThreadHandle,
+    IN ACCESS_MASK          DesiredAccess,
+    IN BOOLEAN              OpenAsSelf,
+    OUT PHANDLE             TokenHandle);
 
 typedef UNICODE_STRING OBJECT_NAME_INFORMATION;
 typedef UNICODE_STRING* POBJECT_NAME_INFORMATION;
+#define STATUS_NO_TOKEN 0xC000007C
+
+#define InitializeObjectAttributes(ptr, root, attrib, name, desc, qos) { (ptr)->Length = sizeof(OBJECT_ATTRIBUTES);  (ptr)->RootDirectory = root; (ptr)->Attributes = attrib; (ptr)->ObjectName = name; (ptr)->SecurityDescriptor = desc; (ptr)->SecurityQualityOfService = qos; }
+
 

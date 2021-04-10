@@ -78,19 +78,21 @@ BOOL GetDomainUsernameFromToken(HANDLE token, char* full_name_to_return)
 	sprintf(full_name_to_return, "%s\\%s", domainname, username);
 	return TRUE;
 }
-BOOL GetTokenInfo(HANDLE tok) {
+BOOL GetTokenInfo(HANDLE hToken) {
 	DWORD error;
 	DWORD dwRet=0;
-	//DWORD dwTokenSID;
 	PTOKEN_GROUPS_AND_PRIVILEGES pTokenGroupsAndPrivileges=NULL;
-	GetTokenInformation(tok, TokenGroupsAndPrivileges, NULL, NULL, &dwRet);
+	GetTokenInformation(hToken, TokenGroupsAndPrivileges, NULL, NULL, &dwRet);
+	printf("\tGetTokenInfo: %d\n", dwRet);
 	if (dwRet == 0) {
 		return FALSE;
 	}
 	else {
 		pTokenGroupsAndPrivileges = (PTOKEN_GROUPS_AND_PRIVILEGES)calloc(dwRet, 1);
-		if (!GetTokenInformation(tok, TokenGroupsAndPrivileges, pTokenGroupsAndPrivileges, dwRet, NULL)) {
-			printf("\tERROR: %d\n", GetLastError());
+		NTSTATUS status = GetTokenInformation(hToken, TokenGroupsAndPrivileges, pTokenGroupsAndPrivileges, dwRet, &dwRet);
+		//cout << "\tstatus: " << status << endl;
+		if (!NT_SUCCESS(status)) {
+			printf("\t获取令牌信息失败，ERROR: %d\n", GetLastError());
 			return FALSE;
 		}
 		else {
@@ -115,7 +117,7 @@ int GetTokenPrivilege(HANDLE tok)
 	if (!dwRet)
 		return 0;
 	ppriv = (PTOKEN_PRIVILEGES)calloc(dwRet, 1);
-	if (!GetTokenInformation(tok, TokenPrivileges, ppriv, dwRet, NULL)) {
+	if (!GetTokenInformation(tok, TokenPrivileges, ppriv, dwRet, &dwRet)) {
 		cout << " \t获取token信息失败，Error: " << GetLastError() << endl;
 		return FALSE;
 	}
@@ -305,11 +307,15 @@ BOOL GetProcessNameFromPid(DWORD pid, TCHAR** tProcName) {
 	//printf("%S\n", *tProcName);
 	return TRUE;
 }
+
+/*
+Desp: 根据pid参数查询令牌信息
+Params: int pid
+Return: 
+*/
 void GetInfoFromPid(int pid) {
-
-
 	// 根据pid获取进程句柄
-	HANDLE hProc = OpenProcess(PROCESS_QUERY_INFORMATION, TRUE, pid);
+	HANDLE hProc = OpenProcess(MAXIMUM_ALLOWED, TRUE, pid);
 	if (hProc == NULL) {
 		hProc = OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, TRUE, pid);
 		if (hProc == NULL) {
@@ -338,6 +344,75 @@ void GetInfoFromPid(int pid) {
 	if (!(dwThreadListLength=GetThreadListFromPid(pid, &pThreadList))) {
 		printf("ERROR: %d\n", GetLastError());
 	}
+	for (int i = 0; i < dwThreadListLength; i++) {
+		DWORD tid = pThreadList[i];
+		GetInfoFromTid(tid);
+	}
+}
+
+
+/*
+Desp: 根据pid参数查询令牌信息（利用微软未公开函数Ntxxx实现）
+Params: int pid
+Return:
+*/
+void GetInfoFromPidB(int pid) {
+	HANDLE hProc;
+	// 根据pid获取进程句柄
+	hProc = OpenProcess(MAXIMUM_ALLOWED, TRUE, pid);
+	// 获取NtOpenProcess的函数指针
+	NTOPENPROCESS NtOpenProcess = (NTOPENPROCESS)GetProcAddress(GetModuleHandle(_T("NTDLL.DLL")), "NtOpenProcess");
+	NTQUERYINFORMATIONPROCESS NtQueryInformationProcess = (NTQUERYINFORMATIONPROCESS)GetProcAddress(GetModuleHandle(_T("NTDLL.DLL")), "NtQueryInformationProcess");
+	CLIENT_ID clientId;
+	clientId.UniqueProcess = UlongToHandle(pid);
+	clientId.UniqueThread = 0;
+
+	OBJECT_ATTRIBUTES objectAttributes;
+	InitializeObjectAttributes(&objectAttributes, NULL, NULL, NULL, NULL, NULL);
+	// 获取进程句柄
+	NTSTATUS status = NtOpenProcess(&hProc, PROCESS_ALL_ACCESS, &objectAttributes,&clientId);
+	if (!NT_SUCCESS(status)) {
+		hProc = OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, TRUE, pid);
+		if (hProc == NULL) {
+			cout << "\t获取进程句柄失败,ERROR: " << GetLastError() << endl;
+			return;
+		}
+	}
+	// 获取进程信息
+	PROCESS_BASIC_INFORMATIONA pbi;
+	ULONG ulRet = 0;
+	status=NtQueryInformationProcess(hProc, ProcessBasicInformation, (PVOID)&pbi, sizeof(PROCESS_BASIC_INFORMATIONA), &ulRet);
+
+	if (!NT_SUCCESS(status)) {
+		printf("\t获取进程信息失败，ERROR: %d\n", GetLastError());
+		return ;
+	}
+	printf("\tUniqueProcessId: %d\n",pbi.UniqueProcessId);
+	// 根据pid获取进程名
+	TCHAR* tProcName;
+	if (GetProcessNameFromPid(pid, &tProcName)) {
+		printf("\tProcessName: %S\n", tProcName);
+	}
+	// 获取进程中的访问令牌
+	HANDLE hToken;
+	if (!OpenProcessToken(hProc, MAXIMUM_ALLOWED, &hToken)) {
+		printf(" \t%d : 获取进程token失败: %d\n", pid, GetLastError());
+	}
+	else {
+		GetTokenInfo(hToken);
+	}
+	CloseHandle(hToken);
+	CloseHandle(hProc);
+
+	// 枚举进程下的所有线程
+	DWORD* pThreadList;
+	DWORD dwThreadListLength;
+	//cout << "pThreadList addr: " << pThreadList << endl;
+	cout << "枚举[" << pid << "]进程下所有的线程:" << endl;
+	if (!(dwThreadListLength = GetThreadListFromPid(pid, &pThreadList))) {
+		printf("ERROR: %d\n", GetLastError());
+	}
+	cout << "\tThreadCount: " << dwThreadListLength << endl;
 	for (int i = 0; i < dwThreadListLength; i++) {
 		DWORD tid = pThreadList[i];
 		GetInfoFromTid(tid);
@@ -403,13 +478,13 @@ BOOL GetInfoFromTid(DWORD tid) {
 		hThread = OpenThread(THREAD_QUERY_LIMITED_INFORMATION, TRUE, tid);
 		if (hThread == NULL) {
 			error = ::GetLastError();
-			SetLastError(error);
 			cout << "\t获取线程句柄失败，ERROR:" << error << "\n" << endl;
 			return FALSE;
 		}
 	}
-	HANDLE htoken;
+	HANDLE hToken;
 	HANDLE hProc;
+	
 	DWORD dwPid = getPIDFromTid(tid);
 	if (dwPid == FALSE) {
 		cout << "\t根据线程TID获取进程PID失败" << endl;
@@ -424,7 +499,6 @@ BOOL GetInfoFromTid(DWORD tid) {
 			hProc = OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, FALSE, dwPid);
 			if (NULL == hProc) {
 				error = ::GetLastError();
-				SetLastError(error);
 				cout << "\t获取进程句柄失败，ERROR:" << error << endl;
 				return FALSE;
 			}
@@ -441,25 +515,45 @@ BOOL GetInfoFromTid(DWORD tid) {
 		}
 	}
 	
-
-	if (OpenThreadToken(hThread, TOKEN_QUERY, TRUE, &htoken)) {
-		
-		GetTokenPrivilege(htoken);
-	}
-	else {
-		OpenThreadToken(hThread, TOKEN_QUERY, TRUE, &htoken);
-		//printf("Fail: %d\n",GetLastError());
-		DWORD error = ::GetLastError();
-		SetLastError(error);
-		if (1008 == error) {
-			cout << "\t该线程不存在模拟令牌,";
+	// 获取线程中的模拟令牌
+	NTOPENTHREADTOKEN NtOpenThreadToken = (NTOPENTHREADTOKEN)GetProcAddress(GetModuleHandle(_T("NTDLL.DLL")), "NtOpenThreadToken");
+	NTSTATUS status = NtOpenThreadToken(hThread, TOKEN_QUERY, FALSE, &hToken);
+	if (!NT_SUCCESS(status))
+	{
+		if (status == STATUS_NO_TOKEN) {
+			printf("\tRetrieving token handle failed,ERROR: NTSTATUS: 0x%X ,STATUS_NO_TOKEN\n", status);
 		}
-		cout << " ERROR:" << error << endl;
-
-		
+		else {
+			printf("\tRetrieving token handle failed,ERROR: NTSTATUS: 0x%X\n", status);
+		}
+		return status;
 	}
+	// 获取线程的相关信息
+	//THREAD_BASIC_INFORMATION ThreadBasicInfoBuffer;
+	//NTQUERYINFORMATIONTHREAD NtQueryInformationThread = (NTQUERYINFORMATIONTHREAD)GetProcAddress(GetModuleHandle(_T("NTDLL.DLL")), "NtQueryInformationThread");
+	//NTSTATUS status = NtQueryInformationThread(hThread,ThreadImpersonationToken,&hToken,0x04,NULL);
+	//printf("\tstatus: %X\n", status);
+//	printf("ThreadBasicInfoBuffer.UniqueProcessId     = %d\n", ThreadBasicInfoBuffer.ClientId.UniqueThread);
+	GetTokenInfo(hToken);
+	//if (OpenThreadToken(hThread, TOKEN_QUERY, FALSE, &hToken)) {
+	//	
+	//	//GetTokenPrivilege(hToken);
+	//	GetTokenInfo(hToken);
+	//}
+	//else {
+	//	OpenThreadToken(hThread, TOKEN_QUERY, FALSE, &hToken);
+	//	//printf("Fail: %d\n",GetLastError());
+	//	DWORD error = ::GetLastError();
+	//	if (1008 == error) {
+	//		cout << "\t该线程不存在模拟令牌,ERROR: " << error << endl;
+	//	}
+	//	else {
+	//		cout << "other Error, ERROR:" << error << endl;
+	//	}
+	//}
 	CloseHandle(hThread);
 	CloseHandle(hProc);
+	CloseHandle(hToken);
 	return TRUE;
 }
 
@@ -647,7 +741,7 @@ BOOL EnumProcessB() {
 					GetTokenInformation(hObject, TokenGroupsAndPrivileges, pTokenGroupsAndPrivileges, dwRet, &dwRet);
 					if (dwRet == 0) {
 						printf("\tdwreterror,ERROR: %d\n", GetLastError());
-						getchar();
+						//getchar();
 					}
 					else {
 						pTokenGroupsAndPrivileges = (PTOKEN_GROUPS_AND_PRIVILEGES)calloc(dwRet, 1);
@@ -678,11 +772,11 @@ BOOL EnumProcessB() {
 						// 判断获取来的令牌是不是模拟令牌
 						if (is_impersonation_token(hObject)) {
 							printf("\t\t该令牌能够被模拟\n");
-							getchar();
+							//getchar();
 						}
 						else {
 							printf("\t\t该令牌不能够被模拟\n");
-							getchar();
+							//getchar();
 						}
 					}
 				//}
@@ -833,12 +927,12 @@ BOOL EnumProcessA() {
 				CloseHandle(hObject2);
 				CloseHandle(hObject);
 			}
-			if (pspi->ProcessId != 0) {
-				if (!wcscmp(pspi->ImageName.Buffer, L"lsass.exe")) {
-					printf("pause\n");
-					getchar();
-				}
-			}
+			//if (pspi->ProcessId != 0) {
+			//	if (!wcscmp(pspi->ImageName.Buffer, L"lsass.exe")) {
+			//		printf("pause\n");
+			//		getchar();
+			//	}
+			//}
 			// 下个进程
 			pspi = (PSYSTEM_PROCESS_INFO)((LPBYTE)pspi + pspi->NextEntryOffset);
 		}
@@ -963,7 +1057,9 @@ int _tmain(int argc, _TCHAR* argv[])
 			}
 			else {
 				cout << "Primary Token In [" << optStr << "] Process" << endl;
-				GetInfoFromPid(atoi(optStr));
+				//GetInfoFromPid(atoi(optStr));
+				GetInfoFromPidB(atoi(optStr));
+
 			}
 			break;
 		case 't':

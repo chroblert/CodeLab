@@ -29,11 +29,12 @@ typedef enum _THREADINFOCLASS {
     ThreadBreakOnTermination,
     MaxThreadInfoClass
 } THREADINFOCLASS;
+
 typedef struct _CLIENT_ID {
     HANDLE UniqueProcess;
     HANDLE UniqueThread;
-} CLIENT_ID;
-typedef CLIENT_ID* PCLIENT_ID;
+} CLIENT_ID, * PCLIENT_ID;
+
 typedef struct _THREAD_BASIC_INFORMATION { // Information Class 0
     LONG ExitStatus;
     PVOID TebBaseAddress;
