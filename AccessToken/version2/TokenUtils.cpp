@@ -4,7 +4,7 @@ GitHub: https://github.com/chroblert/CodeLab/AccessToken
 */
 
 #include "TokenUtils.h"
-#include "tidtest.h"
+//#include "tidtest.h"
 
 using namespace std;
 
@@ -68,9 +68,9 @@ BOOL GetDomainUsernameFromToken(HANDLE token, char* full_name_to_return)
 {
 	LPVOID TokenUserInfo[BUF_SIZE];
 	char username[BUF_SIZE], domainname[BUF_SIZE];
-	DWORD user_length = sizeof(username), domain_length = sizeof(domainname), sid_type = 0, returned_tokinfo_length;
+	DWORD user_length = sizeof(username), domain_length = sizeof(domainname), sid_type = 0, dwRet;
 
-	if (!GetTokenInformation(token, TokenUser, TokenUserInfo, BUF_SIZE, &returned_tokinfo_length))
+	if (!GetTokenInformation(token, TokenUser, TokenUserInfo, BUF_SIZE, &dwRet))
 		return FALSE;
 	LookupAccountSidA(NULL, ((TOKEN_USER*)TokenUserInfo)->User.Sid, username, &user_length, domainname, &domain_length, (PSID_NAME_USE)&sid_type);
 
@@ -101,87 +101,27 @@ BOOL GetTokenInfo(HANDLE hToken) {
 	}
 	return TRUE;
 }
-int GetTokenPrivilege(HANDLE tok)
-{
-	GetTokenInfo(tok);
-	DWORD error;
-	//char* tmpStr;
-	char tmpStr[BUF_SIZE] = { 0 };
-	GetDomainUsernameFromToken(tok, tmpStr);
-	printf(" \tTokenUser\t: %s\n", tmpStr);
-	
-	PTOKEN_PRIVILEGES ppriv = NULL;
+
+
+BOOL GetTokenILFromToken(HANDLE hToken, DWORD* dwIL) {
+	//LPVOID TokenImpersonationInfo[BUF_SIZE];
+	PSECURITY_IMPERSONATION_LEVEL pTokenIL = NULL;
 	DWORD dwRet = 0;
-	//BOOL tmp = GetTokenInformation(tok, TokenGroups, ppriv, dwRet, &dwRet);
-	GetTokenInformation(tok, TokenPrivileges, NULL, NULL, &dwRet);
-	if (!dwRet)
-		return 0;
-	ppriv = (PTOKEN_PRIVILEGES)calloc(dwRet, 1);
-	if (!GetTokenInformation(tok, TokenPrivileges, ppriv, dwRet, &dwRet)) {
-		cout << " \t获取token信息失败，Error: " << GetLastError() << endl;
+	// 获取令牌模拟等级信息，若获取到，则判断模拟等级是不是大于等于模拟
+	GetTokenInformation(hToken, TokenImpersonationLevel, pTokenIL, NULL, &dwRet);
+	pTokenIL = (PSECURITY_IMPERSONATION_LEVEL)malloc(dwRet);
+	if (GetTokenInformation(hToken, TokenImpersonationLevel, pTokenIL, dwRet, &dwRet)) {
+		*dwIL = *pTokenIL;
+		//printf("\t获取令牌中的模拟等级成功，%d\n", *dwIL);
+	}
+	else {
+		//printf("\t获取令牌中的模拟等级失败，ERROR: %d\n", GetLastError());
 		return FALSE;
 	}
-	printf("\n \tprivileges:\n");
-	if (ppriv->PrivilegeCount == 0) {
-		cout << " \t\tno privileges" << endl;
-	}
-	else {
-		for (int i = 0; i < ppriv->PrivilegeCount; i++)
-		{
-			TCHAR lpszPriv[MAX_PATH] = { 0 };
-			DWORD dwRet = MAX_PATH;
-			BOOL n = LookupPrivilegeName(NULL, &(ppriv->Privileges[i].Luid), lpszPriv, &dwRet);
-			printf(" \t\t%-50ws", lpszPriv);
-			TCHAR lpszAttrbutes[1024] = { 0 };
-			RetPrivDwordAttributesToStr(ppriv->Privileges[i].Attributes, lpszAttrbutes);
-			printf("%ws\n", lpszAttrbutes);
-		}
-	}
-
-	
-	LPVOID TokenImpersonationInfo[BUF_SIZE];
-
-	DWORD returned_tokinfo_length;
-	PSECURITY_IMPERSONATION_LEVEL pImpersonationLevel=NULL;
-	dwRet = 0;
-	GetTokenInformation(tok, TokenImpersonationLevel, TokenImpersonationInfo, dwRet, &dwRet);
-	if (!GetTokenInformation(tok, TokenImpersonationLevel, TokenImpersonationInfo, dwRet, &dwRet)) {
-		error = GetLastError();
-		printf("\n \t获取IL失败: %d\n", error);
-		
-	}
-	else {
-		int idx = (int)*TokenImpersonationInfo;
-		printf("\n \tImpersonationLevel: %s\n", ILStr[idx]);
-	}
-
-	//if (GetTokenInformation(tok, TokenImpersonationLevel, TokenImpersonationInfo, BUF_SIZE, &returned_tokinfo_length)) {
-	//	int idx =(int)*TokenImpersonationInfo;
-	//	printf("\n \tImpersonationLevel: %s\n", ILStr[idx]);
-	//}
-	//else {
-	//	error = GetLastError();
-	//	printf("\n \t获取IL失败: %d\n", error);
-	//}
-	LPVOID TokenType1[BUF_SIZE];
-	returned_tokinfo_length = 0;
-	if (GetTokenInformation(tok, TokenType, TokenType1, BUF_SIZE, &returned_tokinfo_length)) {
-		error = GetLastError();
-		printf(" \tTokenType\t: %d\n", *TokenType1);
-		switch ((int)*TokenType1) {
-		case 1:
-			printf(" \tTokenType\t: Primary Token\n\n");
-			break;
-		case 2:
-			printf(" \tTokenType\t: Impersonation Token\n\n");
-			break;
-		default:
-			printf(" \tTokenType\t: Error: %d\n\n",error);
-		}
-	}
-
-	return 1;
+	return TRUE;
 }
+
+
 
 BOOL GetTokenTypeFromToken(HANDLE hToken) {
 	DWORD* pTokenTypeInfo;
@@ -219,6 +159,50 @@ BOOL GetTokenTypeFromToken(HANDLE hToken) {
 	}
 }
 
+int GetTokenPrivilege(HANDLE tok)
+{
+	GetTokenInfo(tok);
+	DWORD error;
+	char tmpStr[BUF_SIZE] = { 0 };
+	GetDomainUsernameFromToken(tok, tmpStr);
+	printf(" \tTokenUser\t: %s\n", tmpStr);
+	
+	PTOKEN_PRIVILEGES ppriv = NULL;
+	DWORD dwRet = 0;
+	GetTokenInformation(tok, TokenPrivileges, NULL, NULL, &dwRet);
+	if (!dwRet)
+		return 0;
+	ppriv = (PTOKEN_PRIVILEGES)calloc(dwRet, 1);
+	if (!GetTokenInformation(tok, TokenPrivileges, ppriv, dwRet, &dwRet)) {
+		cout << " \t获取token信息失败，Error: " << GetLastError() << endl;
+		return FALSE;
+	}
+	printf("\n \tprivileges:\n");
+	if (ppriv->PrivilegeCount == 0) {
+		cout << " \t\tno privileges" << endl;
+	}
+	else {
+		for (int i = 0; i < ppriv->PrivilegeCount; i++)
+		{
+			TCHAR lpszPriv[MAX_PATH] = { 0 };
+			DWORD dwRet = MAX_PATH;
+			BOOL n = LookupPrivilegeName(NULL, &(ppriv->Privileges[i].Luid), lpszPriv, &dwRet);
+			printf(" \t\t%-50ws", lpszPriv);
+			TCHAR lpszAttrbutes[1024] = { 0 };
+			RetPrivDwordAttributesToStr(ppriv->Privileges[i].Attributes, lpszAttrbutes);
+			printf("%ws\n", lpszAttrbutes);
+		}
+	}
+
+	DWORD idx;
+	GetTokenILFromToken(tok,&idx);
+	printf("\tImpersonationLevel: %s\n",ILStr[idx]);
+	GetTokenTypeFromToken(tok);
+
+	return 1;
+}
+
+
 BOOL EnablePriv(HANDLE hToken, LPCTSTR priv)
 {
 
@@ -244,18 +228,19 @@ BOOL EnablePriv(HANDLE hToken, LPCTSTR priv)
 	}
 	return TRUE;
 }
-void EnumThreads() {
+BOOL EnumThreads() {
 	THREADENTRY32 te32 = { sizeof(THREADENTRY32) };
 	HANDLE hThreadSnap = CreateToolhelp32Snapshot(TH32CS_SNAPTHREAD, NULL);
 	if (INVALID_HANDLE_VALUE == hThreadSnap) {
 		cout << "error" << endl;
+		return FALSE;
 	}
 
 	if (Thread32First(hThreadSnap, &te32)) {
 		do {
-			HANDLE hThread = OpenThread(THREAD_QUERY_INFORMATION, TRUE, te32.th32ThreadID);
+			HANDLE hThread = OpenThread(THREAD_QUERY_INFORMATION, FALSE, te32.th32ThreadID);
 			HANDLE htoken;
-			if (OpenThreadToken(hThread, TOKEN_QUERY, TRUE, &htoken)) {
+			if (OpenThreadToken(hThread, TOKEN_QUERY, FALSE, &htoken)) {
 				cout << "ThreadId : " << te32.th32ThreadID << endl;
 				//printf("SUC\n");
 				cout << '\t' << "OwnerProcessID: " << te32.th32OwnerProcessID << endl;
@@ -267,11 +252,9 @@ void EnumThreads() {
 				}
 				else
 				{
-					// You better call GetLastError() here
 					cout << "\t" << "ProcessName   : error" << GetLastError() << endl;
 				}
 				GetTokenPrivilege(htoken);
-				//break;
 			}
 			else {
 				//printf("Fail: %d\n",GetLastError());
@@ -469,6 +452,31 @@ DWORD GetThreadListFromPid(DWORD dwOwnerPID,DWORD** pThreadList) {
 
 	return (bRet);
 }
+DWORD GetPIDFromTID(DWORD tid) {
+	DWORD error;
+//	cout << "ThreadId : " << tid << endl;
+	HANDLE hThread = OpenThread(THREAD_QUERY_INFORMATION, TRUE, tid);
+
+	if (NULL == hThread) {
+		hThread = OpenThread(THREAD_QUERY_LIMITED_INFORMATION, TRUE, tid);
+		if (hThread == NULL) {
+			error = ::GetLastError();
+			cout << "\t获取线程句柄失败，ERROR:" << error << "\n" << endl;
+			return -1;
+		}
+	}
+	// 获取线程的相关信息
+	THREAD_BASIC_INFORMATION ThreadBasicInfoBuffer;
+	NTQUERYINFORMATIONTHREAD NtQueryInformationThread = (NTQUERYINFORMATIONTHREAD)GetProcAddress(GetModuleHandle(_T("NTDLL.DLL")), "NtQueryInformationThread");
+	NTSTATUS status = NtQueryInformationThread(hThread,ThreadBasicInformation,&ThreadBasicInfoBuffer,sizeof(THREAD_BASIC_INFORMATION),NULL);
+	//printf("\tstatus: %X\n", status);
+	if (!NT_SUCCESS(status)) {
+		return -1;
+	}
+	//printf("ThreadBasicInfoBuffer.UniqueProcessId     = %d\n", ThreadBasicInfoBuffer.ClientId.UniqueProcess);
+	DWORD pid = (DWORD)ThreadBasicInfoBuffer.ClientId.UniqueProcess;
+	return pid;
+}
 BOOL GetInfoFromTid(DWORD tid) {
 	DWORD error;
 	cout << "ThreadId : " << tid << endl;
@@ -485,7 +493,9 @@ BOOL GetInfoFromTid(DWORD tid) {
 	HANDLE hToken;
 	HANDLE hProc;
 	
-	DWORD dwPid = getPIDFromTid(tid);
+	//DWORD dwPid = getPIDFromTid(tid);
+	DWORD dwPid = GetPIDFromTID(tid);
+
 	if (dwPid == FALSE) {
 		cout << "\t根据线程TID获取进程PID失败" << endl;
 		//return FALSE;
@@ -649,34 +659,12 @@ LPWSTR GetObjectInfo(HANDLE hObject, OBJECT_INFORMATION_CLASS objInfoClass)
 	return data;
 }
 
-BOOL GetTokenILFromToken(HANDLE hToken, DWORD* dwIL) {
-	HANDLE temp_token;
-	BOOL ret;
-	LPVOID TokenImpersonationInfo[BUF_SIZE];
-	PSECURITY_IMPERSONATION_LEVEL pTokenIL=NULL;
-	DWORD returned_tokinfo_length;
-	DWORD dwRet = 0;
-	// 获取令牌模拟等级信息，若获取到，则判断模拟等级是不是大于等于模拟
-	GetTokenInformation(hToken, TokenImpersonationLevel, pTokenIL, NULL, &dwRet);
-	pTokenIL = (PSECURITY_IMPERSONATION_LEVEL)malloc(dwRet);
-	if (GetTokenInformation(hToken, TokenImpersonationLevel, pTokenIL, dwRet, &dwRet)) {
-		*dwIL = *pTokenIL;
-		//printf("\t获取令牌中的模拟等级成功，%d\n", *dwIL);
-	}
-	else {
-		//printf("\t获取令牌中的模拟等级失败，ERROR: %d\n", GetLastError());
-		return FALSE;
-	}
-	return TRUE;
-}
 
 // 判断传进来的token能否被模拟
-BOOL is_impersonation_token(HANDLE token)
+BOOL IsImpersonationToken(HANDLE token)
 {
 	HANDLE temp_token;
-	BOOL ret;
 	LPVOID TokenImpersonationInfo[BUF_SIZE];
-	DWORD returned_tokinfo_length;
 	// 获取令牌模拟等级信息，若获取到，则判断模拟等级是不是大于等于模拟
 	DWORD dwTokenIL;
 	if (GetTokenILFromToken(token, &dwTokenIL)) {
@@ -686,7 +674,7 @@ BOOL is_impersonation_token(HANDLE token)
 			return FALSE;
 	}
 	// 若未获取到令牌等级信息，则尝试是否能够使用该令牌创建一个具有模拟等级的模拟令牌。根据创建的结果判断能够模拟该令牌
-	ret = DuplicateTokenEx(token, TOKEN_ALL_ACCESS, NULL, SecurityImpersonation, TokenImpersonation, &temp_token);
+	BOOL ret = DuplicateTokenEx(token, TOKEN_ALL_ACCESS, NULL, SecurityImpersonation, TokenImpersonation, &temp_token);
 	CloseHandle(temp_token);
 	return ret;
 }
@@ -770,7 +758,7 @@ BOOL EnumProcessB() {
 						// 返回到自己的安全上下文
 						RevertToSelf();
 						// 判断获取来的令牌是不是模拟令牌
-						if (is_impersonation_token(hObject)) {
+						if (IsImpersonationToken(hObject)) {
 							printf("\t\t该令牌能够被模拟\n");
 							//getchar();
 						}
@@ -877,7 +865,7 @@ BOOL EnumProcessA() {
 							// 返回到自己的安全上下文
 							RevertToSelf();
 							// 判断获取来的令牌是不是模拟令牌
-							//if (is_impersonation_token(hObject2)) {
+							//if (IsImpersonationToken(hObject2)) {
 								DWORD dwRet = 0;
 								PTOKEN_GROUPS_AND_PRIVILEGES pTokenGroupsAndPrivileges = NULL;
 								GetTokenInformation(hObject, TokenGroupsAndPrivileges, pTokenGroupsAndPrivileges, dwRet, &dwRet);
@@ -908,7 +896,7 @@ BOOL EnumProcessA() {
 					printf("\t打开进程，获取进程主令牌:\n");
 			//	OpenThreadToken(GetCurrentThread(), MAXIMUM_ALLOWED, TRUE, &hObject2);
 			//	RevertToSelf();
-			//	if (is_impersonation_token(hObject2)) {
+			//	if (IsImpersonationToken(hObject2)) {
 					DWORD dwRet = 0;
 					PTOKEN_GROUPS_AND_PRIVILEGES pTokenGroupsAndPrivileges = NULL;
 					GetTokenInformation(hObject, TokenGroupsAndPrivileges, pTokenGroupsAndPrivileges, dwRet, &dwRet);
@@ -1007,10 +995,14 @@ void printUsage() {
 Usage: test.exe [OPTION]
 
 [OPTION]
--p [pid|ALL]: 列出所有进程中的令牌或列出某个进程中的令牌
--t [tid|ALL]: 列出所有线程中的模拟令牌或某个线程中的模拟令牌
+-p <pid|ALL>: 列出所有进程中的令牌或列出某个进程中的令牌
+-t <tid|ALL>: 列出所有线程中的模拟令牌或某个线程中的模拟令牌
 -l : 列出当前所有的登录会话
--c : 列出当前的信息)";
+-c : 列出当前的信息
+-P : 是否显示令牌中的privileges信息
+-u <username>: 以某个用户执行命令，与-e <command>结合使用
+-e <command> : 执行命令
+-v : 详细模式)";
 	cout << rawUsageMsg << "\n\n";
 }
 void tchar2char(TCHAR* input, char* output) {
@@ -1042,7 +1034,7 @@ int _tmain(int argc, _TCHAR* argv[])
 	// 从命令行获取参数
 	char opt;
 	char* optStr= NULL;
-	while ((opt = getopt(argc, argv, "p:t:lc")) != -1){
+	while ((opt = getopt(argc, argv, "p:t:lcvpu:e:")) != -1){
 		
 		switch (opt) {
 		case 'p':

@@ -152,13 +152,11 @@
   <ItemGroup>
     <ClCompile Include="getopt.cpp" />
     <ClCompile Include="logonSession.cpp" />
-    <ClCompile Include="tidtest.cpp" />
     <ClCompile Include="TokenUtils.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="getopt.h" />
     <ClInclude Include="logonSession.h" />
-    <ClInclude Include="tidtest.h" />
     <ClInclude Include="TokenUtils.h" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />

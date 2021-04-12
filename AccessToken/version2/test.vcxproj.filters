@@ -24,9 +24,6 @@
     <ClCompile Include="logonSession.cpp">
       <Filter>源文件</Filter>
     </ClCompile>
-    <ClCompile Include="tidtest.cpp">
-      <Filter>源文件</Filter>
-    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="getopt.h">
@@ -36,9 +33,6 @@
       <Filter>头文件</Filter>
     </ClInclude>
     <ClInclude Include="TokenUtils.h">
-      <Filter>头文件</Filter>
-    </ClInclude>
-    <ClInclude Include="tidtest.h">
       <Filter>头文件</Filter>
     </ClInclude>
   </ItemGroup>
