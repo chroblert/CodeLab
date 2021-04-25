@@ -1,5 +1,5 @@
 #include "ProcessInforUtil.h"
-
+#define PROCNAME_CHAR_COUNT 260
 
 BOOL ProcessInforUtil::GetProcessNameFromPid(DWORD pid, TCHAR* tProcName) {
 	HANDLE hProc = OpenProcess(PROCESS_QUERY_INFORMATION, TRUE, pid);
@@ -10,26 +10,24 @@ BOOL ProcessInforUtil::GetProcessNameFromPid(DWORD pid, TCHAR* tProcName) {
 			return FALSE;
 		}
 	}
-	//TCHAR Buffer[MAX_PATH] = {};
-	TCHAR* Buffer = (TCHAR*)malloc(MAX_PATH);
-	ZeroMemory(Buffer, MAX_PATH);
-	if (GetModuleFileNameEx(hProc, NULL, Buffer, MAX_PATH))
-	{
-		//*tProcName = (TCHAR*)malloc(sizeof(Buffer));
-		//tProcName = (TCHAR*)realloc(tProcName, sizeof(Buffer));
-		//if (*tProcName == NULL) {
-		//	printf("xxxxxxxxxxError\n");
-		//	exit(-1);
-		//}
-		_tcscpy(tProcName, Buffer);
-		free(Buffer);
-		return TRUE;
+	TCHAR* Buffer = (TCHAR*)calloc(1,PROCNAME_CHAR_COUNT);
+	if (!Buffer) {
+		printf("\tmalloc ß∞‹£¨ERROR: %d\n", GetLastError());
+		return FALSE;
 	}
-	else
+	//ZeroMemory(Buffer, MAX_PATH);
+	if (!GetModuleFileNameEx(hProc, NULL, Buffer, PROCNAME_CHAR_COUNT))
 	{
 		// You better call GetLastError() here
 		std::cout << "\t" << "ProcessName   : error" << GetLastError() << std::endl;
 		free(Buffer);
 		return FALSE;
+	}
+	else
+	{
+		_tcscpy(tProcName, Buffer);
+		free(Buffer);
+		Buffer = NULL;
+		return TRUE;
 	}
 }

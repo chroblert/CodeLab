@@ -4,11 +4,85 @@
 #include <iostream>
 #include <tchar.h>
 #include "TokenUtil.h"
+#define TOKENLIST_NODE_COUNT 1000
+
+
+DWORD TryEnableAssignPrimaryPriv(HANDLE token)
+{
+	HANDLE hToken = token;
+	DWORD dwError = 0;
+	TOKEN_PRIVILEGES privileges;
+
+	if (hToken == NULL && !OpenProcessToken(GetCurrentProcess(), MAXIMUM_ALLOWED, &hToken))
+	{
+		dwError = GetLastError();
+		goto exit;
+	}
+
+	if (!LookupPrivilegeValue(NULL, SE_ASSIGNPRIMARYTOKEN_NAME, &privileges.Privileges[0].Luid))
+	{
+		dwError = GetLastError();
+		goto exit;
+	}
+
+	privileges.Privileges[0].Attributes = SE_PRIVILEGE_ENABLED;
+	privileges.PrivilegeCount = 1;
+
+	if (AdjustTokenPrivileges(hToken, FALSE, &privileges, 0, NULL, NULL) == 0)
+	{
+		dwError = GetLastError();
+		goto exit;
+	}
+
+exit:
+	if (token == NULL && hToken)
+		CloseHandle(hToken);
+
+	return dwError;
+}
+
+
+
+DWORD TryEnableDebugPriv(HANDLE token)
+{
+	HANDLE hToken = token;
+	DWORD dwError = 0;
+	TOKEN_PRIVILEGES privileges;
+
+	if (hToken == NULL && !OpenProcessToken(GetCurrentProcess(), MAXIMUM_ALLOWED, &hToken))
+	{
+		dwError = GetLastError();
+		goto exit;
+	}
+
+	if (!LookupPrivilegeValue(NULL, SE_DEBUG_NAME, &privileges.Privileges[0].Luid))
+	{
+		dwError = GetLastError();
+		goto exit;
+	}
+
+	privileges.Privileges[0].Attributes = SE_PRIVILEGE_ENABLED;
+	privileges.PrivilegeCount = 1;
+
+	//if (AdjustTokenPrivileges(hToken, FALSE, &privileges, 0, NULL, NULL) == 0)
+	if (AdjustTokenPrivileges(hToken, FALSE, &privileges, sizeof(privileges), NULL, NULL) == 0)
+	{
+		dwError = GetLastError();
+		goto exit;
+	}
+
+exit:
+	if (token == NULL && hToken)
+		CloseHandle(hToken);
+
+	return dwError == ERROR_SUCCESS;
+}
 
 BOOL ExecuteWithToken(HANDLE hToken,_TCHAR* tCommandArg) {
 	TokenList* pTokenList = (TokenList*)malloc(sizeof(TokenList));
 	ZeroMemory(pTokenList, sizeof(TokenList));
-	pTokenList->ppTokenListNode = (PTokenListNode*)calloc(BUF_SIZE, sizeof(TokenListNode));
+	pTokenList->pTokenListNode = (PTokenListNode)calloc(1000, sizeof(TokenListNode));
+	pTokenList->dwLength = 0;
 	TokenInforUtil::GetTokens(pTokenList);
 	TokenInforUtil::PrintTokens(*pTokenList);
 	return TRUE;
@@ -181,6 +255,9 @@ BOOL HandleArgument(_TCHAR* tModule,int argc,_TCHAR* argv[]) {
 }
 int _tmain(int argc, _TCHAR* argv[])
 {
+	DWORD tmpRes = TryEnableDebugPriv(NULL);
+	printf("enableDebug: %d\n", tmpRes);
+	TryEnableAssignPrimaryPriv(NULL);
 	if (argc < 2) {
 		Helper::print_usage();
 		return FALSE;

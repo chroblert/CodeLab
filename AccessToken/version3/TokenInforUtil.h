@@ -330,13 +330,14 @@ typedef struct _TokenListNode {
 	TCHAR* tProcName; //令牌所属进程的文件名
 	DWORD dwIL; // 模拟等级
 	DWORD dwTokenType; //令牌类型
+    DWORD dwHandleOffset;
 	//LUID dwLogonID; //令牌对应的登录会话
     LUID luLogonID;
     BOOL bCanBeImpersonate; //是否能被模拟
 }TokenListNode,*PTokenListNode;
 
 typedef struct _TokenList {
-	PTokenListNode* ppTokenListNode;
+	TokenListNode* pTokenListNode;
 	DWORD dwLength;
 }TokenList,*PTokenList;
 
@@ -344,11 +345,17 @@ class TokenInforUtil
 {
 public:
 	static BOOL GetTokenByUsername(TCHAR* tUsernameArg, HANDLE* hOutToken);
-	static BOOL GetDomainUsernameFromToken(HANDLE token, TCHAR** full_name_to_return);
+	static BOOL GetDomainUsernameFromToken(HANDLE token, TCHAR* full_name_to_return);
+    static BOOL GetDomainUsernameFromToken(HANDLE token, char* full_name_to_return);
 	static BOOL GetTokens(PTokenList pTokenList);
     static BOOL PrintTokens(TokenList tokenList);
     static BOOL GetTokenILFromToken(HANDLE hToken, DWORD* dwIL);
     static BOOL CanBeImpersonate(HANDLE hToken, BOOL* bRet);
     static BOOL GetTokenTypeFromToken(HANDLE hToken, DWORD* dwTokenType);
+    static BOOL InitTokenListNode(TokenListNode* pTokenListNode);
+    static BOOL ReleaseTokenListNode(TokenListNode* pTokenListNode);
 };
 
+/*
+
+*/
