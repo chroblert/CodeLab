@@ -6,7 +6,7 @@ BOOL ProcessInforUtil::GetProcessNameFromPid(DWORD pid, TCHAR* tProcName) {
 	if (hProc == NULL) {
 		hProc = OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, TRUE, pid);
 		if (hProc == NULL) {
-			std::cout << "\t获取进程句柄失败,ERROR: " << GetLastError() << std::endl;
+			//std::cout << "\t获取进程句柄失败,ERROR: " << GetLastError() << std::endl;
 			return FALSE;
 		}
 	}

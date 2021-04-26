@@ -32,6 +32,9 @@ BOOL TokenInforUtil::GetDomainUsernameFromToken(HANDLE hToken, TCHAR* full_name_
 		return FALSE;
 	}
 	PTOKEN_USER pTokenUser = (PTOKEN_USER)calloc(dwRet,1);
+	if (!pTokenUser) {
+		return FALSE;
+	}
 	if (!GetTokenInformation(hToken, TokenUser, pTokenUser, dwRet, &dwRet))
 		return FALSE;
 	//printf("test,%d\n", pTokenUser->User.Sid);
@@ -46,7 +49,13 @@ BOOL TokenInforUtil::GetDomainUsernameFromToken(HANDLE hToken, TCHAR* full_name_
 
 	// Reallocate memory for the buffers.
 	AcctName = (TCHAR*)calloc(dwAcctName,sizeof(TCHAR));
+	if (!AcctName) {
+		return FALSE;
+	}
 	DomainName = (TCHAR*)calloc(dwDomainName, sizeof(TCHAR));
+	if (!DomainName) {
+		return FALSE;
+	}
 	// Second call to LookupAccountSid to get the account name.
 	bRtnBool = LookupAccountSid(
 		NULL,                   // name of local or remote computer
@@ -216,22 +225,6 @@ BOOL TokenInforUtil::PrintTokens(TokenList tokenList) {
 		else {
 			printf("TokenUser: None\n");
 		}
-		// test
-		//TCHAR* tUsername = (TCHAR*)calloc(260, sizeof(TCHAR));
-		//if (!tUsername) {
-		//	printf("\tcalloc失败,ERROR: %d\n", GetLastError());
-		//	return FALSE;
-		//}
-		//else {
-		//	if (!TokenInforUtil::GetDomainUsernameFromToken(tokenList.pTokenListNode[i].hToken, tUsername)) {
-		//		//(pTokenList->pTokenListNode + pTokenList->dwLength)->tUserName = (TCHAR*)calloc(_tcslen(tUsername) + 1, sizeof(TCHAR));
-		//		//_tcscpy((pTokenList->pTokenListNode + pTokenList->dwLength)->tUserName, tUsername);
-		//		//return FALSE;
-		//		printf("Error: %d\n", GetLastError());
-		//	}else
-		//		printf("testllllll:  %S\n", tUsername);
-		//}
-		// end
 		printf("\n");
 	}
 	return TRUE;
@@ -243,22 +236,6 @@ BOOL TokenInforUtil::PrintTokens(TokenList tokenList) {
 */
 #define USERNAME_CHAR_COUNT 50
 #define PROCNAME_CHAR_COUNT 260
-BOOL TokenInforUtil::InitTokenListNode(TokenListNode* pTokenListNode) {
-	// Step1. 以0填充
-	ZeroMemory(pTokenListNode, sizeof(TokenListNode));
-	// Step2. 为TCHAR*指针创建内存块
-	pTokenListNode->tUserName = (TCHAR*)calloc(USERNAME_CHAR_COUNT+1, sizeof(TCHAR));
-	pTokenListNode->tProcName = (TCHAR*)calloc(PROCNAME_CHAR_COUNT+1, sizeof(TCHAR));
-	// Step3. 为其他成员赋值
-	pTokenListNode->hToken = NULL;
-	pTokenListNode->dwPID = -1;
-	pTokenListNode->dwTID = -1;
-	pTokenListNode->dwIL = -1;
-	pTokenListNode->dwTokenType = -1;
-	pTokenListNode->luLogonID = { 0,0 };
-	pTokenListNode->bCanBeImpersonate = FALSE;
-	return TRUE;
-}
 
 
 /*获取系统中的所有令牌*/
@@ -395,6 +372,9 @@ BOOL TokenInforUtil::GetTokens(PTokenList pTokenList) {
 				// Info6. 用户名
 				if (tUsername != NULL && _tcscmp(tUsername, L"") != 0) {
 					(pTokenList->pTokenListNode + pTokenList->dwLength)->tUserName = (TCHAR*)calloc(_tcslen(tUsername) + 1, sizeof(TCHAR));
+					if (!((pTokenList->pTokenListNode + pTokenList->dwLength)->tUserName)) {
+						return FALSE;
+					}
 					_tcscpy((pTokenList->pTokenListNode + pTokenList->dwLength)->tUserName, tUsername);
 				}
 				// Info7. 令牌模拟等级

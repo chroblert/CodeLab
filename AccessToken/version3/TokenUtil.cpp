@@ -78,6 +78,41 @@ exit:
 	return dwError == ERROR_SUCCESS;
 }
 
+
+/*ListTokens*/
+BOOL ListTokens(_TCHAR* tUserName,BOOL bVerbose) {
+	TokenList* pTokenList = (TokenList*)malloc(sizeof(TokenList));
+	ZeroMemory(pTokenList, sizeof(TokenList));
+	pTokenList->pTokenListNode = (PTokenListNode)calloc(Token_List_Node_Count, sizeof(TokenListNode));
+	pTokenList->dwLength = 0;
+	TokenInforUtil::GetTokens(pTokenList);
+	TokenList tokenList = *pTokenList;
+	for (DWORD i = 0; i < tokenList.dwLength; i++) {
+		if (tUserName != NULL && tokenList.pTokenListNode[i].tUserName != nullptr && _tcscmp(tokenList.pTokenListNode[i].tUserName, tUserName) != 0) {
+			continue;
+		}
+		printf("PID: %d\n", tokenList.pTokenListNode[i].dwPID);
+		printf("HandleOffset: 0x%x\n", tokenList.pTokenListNode[i].dwHandleOffset);
+		printf("LogonID: %08x-%08x\n", tokenList.pTokenListNode[i].luLogonID.HighPart, tokenList.pTokenListNode[i].luLogonID.LowPart);
+		printf("IL: %d\n", tokenList.pTokenListNode[i].dwIL);
+		printf("CanBeImpersonated: %d\n", tokenList.pTokenListNode[i].bCanBeImpersonate);
+		if (tokenList.pTokenListNode[i].tProcName != nullptr) {
+			printf("ProcessName: %S\n", tokenList.pTokenListNode[i].tProcName);
+		}
+		else {
+			printf("ProcessName: None\n");
+		}
+		if (tokenList.pTokenListNode[i].tUserName != nullptr) {
+			printf("TokenUser: %S\n", tokenList.pTokenListNode[i].tUserName);
+		}
+		else {
+			printf("TokenUser: None\n");
+		}
+		printf("\n");
+	}
+	return TRUE;
+}
+
 BOOL ExecuteWithToken(HANDLE hToken,_TCHAR* tUserName,_TCHAR* tCommandArg) {
 	TokenList* pTokenList = (TokenList*)malloc(sizeof(TokenList));
 	ZeroMemory(pTokenList, sizeof(TokenList));
@@ -191,6 +226,9 @@ BOOL HandleArgument(_TCHAR* tModule,int argc,_TCHAR* argv[]) {
 	//_TCHAR* tTmpChr = {};
 	_TCHAR** tArgv;
 	tArgv = (_TCHAR**)calloc(argc - 1,sizeof(_TCHAR*));
+	if (!tArgv) {
+		return FALSE;
+	}
 	for (int i = 1; i < argc; i++) {
 		tArgv[i - 1] = argv[i];
 	}
@@ -198,21 +236,19 @@ BOOL HandleArgument(_TCHAR* tModule,int argc,_TCHAR* argv[]) {
 	char opt;
 	//TCHAR* optStr = NULL;
 	// 判断传进来的是哪一个module
-	if (!_tcscmp(tModule, L"ListToken")) {
+	if (!_tcscmp(tModule, L"ListTokens")) {
 		// 从命令行获取参数
-		TCHAR tmpstrx[10] = _T("cmd");
 		while ((opt = getopt(argc-1, tArgv, "p:t:lcvpu:e:")) != -1) {
 			switch (opt) {
 			case 'u':
 				printf("%c -> %S\n", opt, optarg);
+				tUserName = (TCHAR*)malloc(sizeof(optarg));
+				_tcscpy(tUserName, optarg);
 				break;
 			case 'p': //列出指定pid或所有进程中的令牌
 				printf("%c -> %S\n", opt, optarg);
 				break;
 			case 't': //列出指定tid或所有线程中的模拟令牌
-				printf("%c -> %S\n", opt, optarg);
-				break;
-			case 'l': //列出当前系统中的系统会话
 				printf("%c -> %S\n", opt, optarg);
 				break;
 			case 'c': //列出当前进程的令牌信息
@@ -223,13 +259,14 @@ BOOL HandleArgument(_TCHAR* tModule,int argc,_TCHAR* argv[]) {
 				exit(1);
 			}
 		}
+		// ListTokens
+		ListTokens(tUserName, TRUE);
 	}
 	else if (!_tcscmp(tModule, L"ListLogonSession")) {
 
 	}
 	else if (!_tcscmp(tModule, L"Execute")) {
 		// 从命令行获取参数
-		TCHAR tmpstrx[10] = _T("cmd");
 		while ((opt = getopt(argc - 1, tArgv, "u:e:")) != -1) {
 			switch (opt) {
 			case 'u': //用户名
@@ -248,7 +285,6 @@ BOOL HandleArgument(_TCHAR* tModule,int argc,_TCHAR* argv[]) {
 			}
 		}
 		// 执行命令
-		//printf("x%S\n", tCommand);
 		ExecuteWithToken(NULL,tUserName,tCommand);
 	}
 	else {
@@ -269,10 +305,17 @@ int _tmain(int argc, _TCHAR* argv[])
 			printf("ChooseModule:%ws\n", argv[1]);
 			tModule = (TCHAR*)malloc(sizeof(ModuleList[i]));
 			_tcscpy(tModule, ModuleList[i]);
+			break;
 		}
 	}
-	HandleArgument(tModule, argc, argv);
-	//printf("%ws\n", tModule);
+	if (tModule != NULL) {
+		HandleArgument(tModule, argc, argv);
+		free(tModule);
+		tModule = NULL;
+	}
+	else {
+		Helper::print_usage();
+	}
 	return FALSE;
 	
 

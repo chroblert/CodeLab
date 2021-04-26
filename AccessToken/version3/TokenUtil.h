@@ -16,5 +16,5 @@ extern BOOL bCurInfo = FALSE;
 extern BOOL bDisLogonSession = FALSE;
 
 // ¼¸¸ömodule: Token,LogonSession,Execute
-const TCHAR* ModuleList[] = { L"ListToken",L"Execute",L"ListLogonSession" };
+const TCHAR* ModuleList[] = { L"ListTokens",L"Execute",L"ListLogonSession" };
 

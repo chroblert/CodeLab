@@ -351,8 +351,6 @@ public:
     static BOOL GetTokenILFromToken(HANDLE hToken, DWORD* dwIL);
     static BOOL CanBeImpersonate(HANDLE hToken, BOOL* bRet);
     static BOOL GetTokenTypeFromToken(HANDLE hToken, DWORD* dwTokenType);
-    static BOOL InitTokenListNode(TokenListNode* pTokenListNode);
-    static BOOL ReleaseTokenListNode(TokenListNode* pTokenListNode);
 };
 
 /*
