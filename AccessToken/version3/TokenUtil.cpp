@@ -78,13 +78,14 @@ exit:
 	return dwError == ERROR_SUCCESS;
 }
 
-BOOL ExecuteWithToken(HANDLE hToken,_TCHAR* tCommandArg) {
+BOOL ExecuteWithToken(HANDLE hToken,_TCHAR* tUserName,_TCHAR* tCommandArg) {
 	TokenList* pTokenList = (TokenList*)malloc(sizeof(TokenList));
 	ZeroMemory(pTokenList, sizeof(TokenList));
 	pTokenList->pTokenListNode = (PTokenListNode)calloc(Token_List_Node_Count, sizeof(TokenListNode));
 	pTokenList->dwLength = 0;
 	TokenInforUtil::GetTokens(pTokenList);
 	TokenInforUtil::PrintTokens(*pTokenList);
+	//TokenInforUtil::GetTokenByUsername(*pTokenList, tUserName, &hToken);
 	return TRUE;
 	HANDLE hParentRead, hParentWrite, hChildRead, hChildWrite; //创建4个句柄
 	HANDLE hNewToken;
@@ -109,15 +110,11 @@ BOOL ExecuteWithToken(HANDLE hToken,_TCHAR* tCommandArg) {
 		&hChildWrite,
 		&sa,
 		0);
-	//std::cout << bRet << std::endl;
-
 	//创建管道2.  子进程读->父进程写.
 	bRet = CreatePipe(&hChildRead,
 		&hParentWrite,
 		&sa,
 		0);
-	//std::cout << bRet << std::endl;
-
 	//这里将子进程写重定向到 stdout中. 子进程读取重定向到stdinput中
 	si.hStdInput = hChildRead;
 	si.hStdOutput = hChildWrite;
@@ -139,9 +136,14 @@ BOOL ExecuteWithToken(HANDLE hToken,_TCHAR* tCommandArg) {
 		// Create primary token
 		if (!DuplicateTokenEx(hToken, TOKEN_ALL_ACCESS, NULL, SecurityImpersonation, TokenPrimary, &hNewToken))
 		{
+			printf("User: %S,Token: %d ,ERROR: %d\n", tUserName, hToken, GetLastError());
 			HANDLE hTmpToken;
-			OpenThreadToken(GetCurrentThread(), TOKEN_ALL_ACCESS, TRUE, &hTmpToken);
-
+			if (!OpenThreadToken(GetCurrentThread(), TOKEN_ALL_ACCESS, TRUE, &hTmpToken)) {
+				if (!OpenProcessToken(GetCurrentProcess(), TOKEN_ALL_ACCESS, &hTmpToken)) {
+					printf("ERROR: %d\n", GetLastError());
+					return FALSE;
+				}
+			}
 			// Duplicate to make primary token 
 			if (!DuplicateTokenEx(hTmpToken, TOKEN_ALL_ACCESS, NULL, SecurityImpersonation, TokenPrimary, &hNewToken))
 			{
@@ -247,7 +249,7 @@ BOOL HandleArgument(_TCHAR* tModule,int argc,_TCHAR* argv[]) {
 		}
 		// 执行命令
 		//printf("x%S\n", tCommand);
-		ExecuteWithToken(NULL,tCommand);
+		ExecuteWithToken(NULL,tUserName,tCommand);
 	}
 	else {
 		Helper::print_usage();

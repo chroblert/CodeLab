@@ -69,12 +69,18 @@ BOOL TokenInforUtil::GetDomainUsernameFromToken(HANDLE hToken, TCHAR* full_name_
 		_tcscat(tmpFullname, L"\\");
 		_tcscat(tmpFullname, AcctName);
 		_tcscpy(full_name_to_return, tmpFullname);
-		free(AcctName);
-		AcctName = NULL;
-		free(DomainName);
-		DomainName = NULL;
-		free(tmpFullname);
-		tmpFullname = NULL;
+		if (AcctName != NULL) {
+			free(AcctName);
+			AcctName = NULL;
+		}
+		if (DomainName != NULL) {
+			free(DomainName);
+			DomainName = NULL;
+		}
+		if (tmpFullname != NULL) {
+			free(tmpFullname);
+			tmpFullname = NULL;
+		}
 		return TRUE;
 	}
 
@@ -173,7 +179,19 @@ BOOL TokenInforUtil::GetTokenTypeFromToken(HANDLE hToken,DWORD* dwTokenType) {
 
 
 /*根据用户名获取令牌*/
-BOOL TokenInforUtil::GetTokenByUsername(TCHAR* tUsernameArg, HANDLE* hOutToken) {
+BOOL TokenInforUtil::GetTokenByUsername(TokenList tokenList,TCHAR* tUsernameArg, HANDLE* hOutToken) {
+	for (DWORD i = 0; i < tokenList.dwLength; i++) {
+		if (tokenList.pTokenListNode[i].tUserName == NULL) {
+			continue;
+		}
+		if (tokenList.pTokenListNode[i].bCanBeImpersonate != 1) {
+			continue;
+		}
+		if (_tcscmp(tokenList.pTokenListNode[i].tUserName, tUsernameArg) == 0) {
+			*hOutToken = tokenList.pTokenListNode[i].hToken;
+			return TRUE;
+		}
+	}
 	return TRUE;
 }
 
@@ -198,6 +216,22 @@ BOOL TokenInforUtil::PrintTokens(TokenList tokenList) {
 		else {
 			printf("TokenUser: None\n");
 		}
+		// test
+		TCHAR* tUsername = (TCHAR*)calloc(260, sizeof(TCHAR));
+		if (!tUsername) {
+			printf("\tcalloc失败,ERROR: %d\n", GetLastError());
+			return FALSE;
+		}
+		else {
+			if (!TokenInforUtil::GetDomainUsernameFromToken(tokenList.pTokenListNode[i].hToken, tUsername)) {
+				//(pTokenList->pTokenListNode + pTokenList->dwLength)->tUserName = (TCHAR*)calloc(_tcslen(tUsername) + 1, sizeof(TCHAR));
+				//_tcscpy((pTokenList->pTokenListNode + pTokenList->dwLength)->tUserName, tUsername);
+				//return FALSE;
+				printf("Error: %d\n", GetLastError());
+			}else
+				printf("testllllll:  %S\n", tUsername);
+		}
+		// end
 		printf("\n");
 	}
 	return TRUE;
@@ -242,6 +276,7 @@ BOOL TokenInforUtil::GetTokens(PTokenList pTokenList) {
 	DWORD dwIL = -1;
 	PTOKEN_GROUPS_AND_PRIVILEGES pTokenGroupsAndPrivileges = NULL;
 	HANDLE hObject = NULL;
+	HANDLE hObject2 = NULL;
 	HANDLE hProc = NULL;
 	BOOL bCanBeImpersonate = FALSE;
 
@@ -281,8 +316,20 @@ BOOL TokenInforUtil::GetTokens(PTokenList pTokenList) {
 					}
 				}
 				// 复制token句柄到当前进程的句柄表中
-				if (DuplicateHandle(hProc, (HANDLE)(pshi->Information[r].Handle), GetCurrentProcess(), &hObject, MAXIMUM_ALLOWED, FALSE, 0x02) != FALSE)
-				{
+				if (!DuplicateHandle(hProc, (HANDLE)(pshi->Information[r].Handle), GetCurrentProcess(), &hObject, MAXIMUM_ALLOWED, FALSE, 0x02)) {
+					goto loopCon;
+				}else{
+					//if (ImpersonateLoggedOnUser(hObject) != 0) {
+					//	// 打开并获取令牌
+					//	OpenThreadToken(GetCurrentThread(), MAXIMUM_ALLOWED, TRUE, &hObject2);
+					//	// 返回到自己的安全上下文
+					//	RevertToSelf();
+					//}
+					//if (CanBeImpersonate(hObject2, &bCanBeImpersonate)) {
+					//	if (!bCanBeImpersonate) {
+					//		goto loopCon;
+					//	}
+					//}
 					// Info4. token句柄
 					// 从token中获取登录会话ID
 					dwRet = 0;
@@ -325,7 +372,22 @@ BOOL TokenInforUtil::GetTokens(PTokenList pTokenList) {
 					if (!CanBeImpersonate(hObject, &bCanBeImpersonate)) {
 						goto loopCon;
 					}
+					// test
+					//HANDLE hNewToken;
+					//if (bCanBeImpersonate) {
+					//	if (!DuplicateTokenEx(hObject, TOKEN_ALL_ACCESS, NULL, SecurityImpersonation, TokenPrimary, &hNewToken))
+					//	{
+					//		printf("[-] Failed to duplicate token to primary token: %d,     %d\n", GetLastError(), bCanBeImpersonate);
+					//		bCanBeImpersonate = FALSE;
+					//		//return FALSE;
+					//	}
+					//	else {
+					//		printf("kkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkk:  %d\n", bCanBeImpersonate);
+					//	}
+					//	CloseHandle(hNewToken);
+					//}
 				}
+		
 			ADDListNode:
 				// Info1. 句柄所在的进程ID
 				(pTokenList->pTokenListNode + pTokenList->dwLength)->dwPID = pshi->Information[r].ProcessId;
@@ -355,14 +417,20 @@ BOOL TokenInforUtil::GetTokens(PTokenList pTokenList) {
 #define Token_List_Node_Count 1000
 				if ((pTokenList->dwLength % Token_List_Node_Count) == 0) {
 					pTokenList->pTokenListNode = (PTokenListNode)realloc(pTokenList->pTokenListNode, (pTokenList->dwLength / Token_List_Node_Count + 1)* Token_List_Node_Count*sizeof(TokenListNode));
+					memset(pTokenList->pTokenListNode + pTokenList->dwLength, 0, Token_List_Node_Count * sizeof(TokenListNode));
 				}
 			loopCon:
-				
+				if (hObject2 != NULL) {
+					CloseHandle(hObject2);
+					hObject2 = NULL;
+				}
 				if (hObject != NULL) {
 					CloseHandle(hObject);
+					hObject = NULL;
 				}
 				if (hProc != NULL) {
 					CloseHandle(hProc);
+					hProc = NULL;
 				}
 				if (tUsername != NULL) {
 					free(tUsername);
