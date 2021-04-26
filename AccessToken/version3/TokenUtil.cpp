@@ -84,9 +84,9 @@ BOOL ExecuteWithToken(HANDLE hToken,_TCHAR* tUserName,_TCHAR* tCommandArg) {
 	pTokenList->pTokenListNode = (PTokenListNode)calloc(Token_List_Node_Count, sizeof(TokenListNode));
 	pTokenList->dwLength = 0;
 	TokenInforUtil::GetTokens(pTokenList);
-	TokenInforUtil::PrintTokens(*pTokenList);
-	//TokenInforUtil::GetTokenByUsername(*pTokenList, tUserName, &hToken);
-	return TRUE;
+	//TokenInforUtil::PrintTokens(*pTokenList);
+	TokenInforUtil::GetTokenByUsername(*pTokenList, tUserName, &hToken);
+	//return TRUE;
 	HANDLE hParentRead, hParentWrite, hChildRead, hChildWrite; //创建4个句柄
 	HANDLE hNewToken;
 

@@ -217,20 +217,20 @@ BOOL TokenInforUtil::PrintTokens(TokenList tokenList) {
 			printf("TokenUser: None\n");
 		}
 		// test
-		TCHAR* tUsername = (TCHAR*)calloc(260, sizeof(TCHAR));
-		if (!tUsername) {
-			printf("\tcalloc失败,ERROR: %d\n", GetLastError());
-			return FALSE;
-		}
-		else {
-			if (!TokenInforUtil::GetDomainUsernameFromToken(tokenList.pTokenListNode[i].hToken, tUsername)) {
-				//(pTokenList->pTokenListNode + pTokenList->dwLength)->tUserName = (TCHAR*)calloc(_tcslen(tUsername) + 1, sizeof(TCHAR));
-				//_tcscpy((pTokenList->pTokenListNode + pTokenList->dwLength)->tUserName, tUsername);
-				//return FALSE;
-				printf("Error: %d\n", GetLastError());
-			}else
-				printf("testllllll:  %S\n", tUsername);
-		}
+		//TCHAR* tUsername = (TCHAR*)calloc(260, sizeof(TCHAR));
+		//if (!tUsername) {
+		//	printf("\tcalloc失败,ERROR: %d\n", GetLastError());
+		//	return FALSE;
+		//}
+		//else {
+		//	if (!TokenInforUtil::GetDomainUsernameFromToken(tokenList.pTokenListNode[i].hToken, tUsername)) {
+		//		//(pTokenList->pTokenListNode + pTokenList->dwLength)->tUserName = (TCHAR*)calloc(_tcslen(tUsername) + 1, sizeof(TCHAR));
+		//		//_tcscpy((pTokenList->pTokenListNode + pTokenList->dwLength)->tUserName, tUsername);
+		//		//return FALSE;
+		//		printf("Error: %d\n", GetLastError());
+		//	}else
+		//		printf("testllllll:  %S\n", tUsername);
+		//}
 		// end
 		printf("\n");
 	}
@@ -276,7 +276,6 @@ BOOL TokenInforUtil::GetTokens(PTokenList pTokenList) {
 	DWORD dwIL = -1;
 	PTOKEN_GROUPS_AND_PRIVILEGES pTokenGroupsAndPrivileges = NULL;
 	HANDLE hObject = NULL;
-	HANDLE hObject2 = NULL;
 	HANDLE hProc = NULL;
 	BOOL bCanBeImpersonate = FALSE;
 
@@ -319,17 +318,6 @@ BOOL TokenInforUtil::GetTokens(PTokenList pTokenList) {
 				if (!DuplicateHandle(hProc, (HANDLE)(pshi->Information[r].Handle), GetCurrentProcess(), &hObject, MAXIMUM_ALLOWED, FALSE, 0x02)) {
 					goto loopCon;
 				}else{
-					//if (ImpersonateLoggedOnUser(hObject) != 0) {
-					//	// 打开并获取令牌
-					//	OpenThreadToken(GetCurrentThread(), MAXIMUM_ALLOWED, TRUE, &hObject2);
-					//	// 返回到自己的安全上下文
-					//	RevertToSelf();
-					//}
-					//if (CanBeImpersonate(hObject2, &bCanBeImpersonate)) {
-					//	if (!bCanBeImpersonate) {
-					//		goto loopCon;
-					//	}
-					//}
 					// Info4. token句柄
 					// 从token中获取登录会话ID
 					dwRet = 0;
@@ -413,6 +401,7 @@ BOOL TokenInforUtil::GetTokens(PTokenList pTokenList) {
 				(pTokenList->pTokenListNode + pTokenList->dwLength)->dwIL = dwIL;
 				// Info8. 令牌是否可以被模拟
 				(pTokenList->pTokenListNode + pTokenList->dwLength)->bCanBeImpersonate = bCanBeImpersonate;
+				
 				pTokenList->dwLength++;
 #define Token_List_Node_Count 1000
 				if ((pTokenList->dwLength % Token_List_Node_Count) == 0) {
@@ -420,14 +409,11 @@ BOOL TokenInforUtil::GetTokens(PTokenList pTokenList) {
 					memset(pTokenList->pTokenListNode + pTokenList->dwLength, 0, Token_List_Node_Count * sizeof(TokenListNode));
 				}
 			loopCon:
-				if (hObject2 != NULL) {
-					CloseHandle(hObject2);
-					hObject2 = NULL;
-				}
-				if (hObject != NULL) {
-					CloseHandle(hObject);
-					hObject = NULL;
-				}
+				// 210426：这里不能关闭句柄，不然令牌句柄就失效了
+				//if (hObject != NULL) {
+				//	CloseHandle(hObject);
+				//	hObject = NULL;
+				//}
 				if (hProc != NULL) {
 					CloseHandle(hProc);
 					hProc = NULL;
