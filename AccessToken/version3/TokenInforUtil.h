@@ -331,8 +331,7 @@ typedef struct _TokenListNode {
 	DWORD dwIL; // 模拟等级
 	DWORD dwTokenType; //令牌类型
     DWORD dwHandleOffset;
-	//LUID dwLogonID; //令牌对应的登录会话
-    LUID luLogonID;
+    LUID luLogonID; //令牌对应的登录会话
     BOOL bCanBeImpersonate; //是否能被模拟
 }TokenListNode,*PTokenListNode;
 

@@ -10,7 +10,7 @@ BOOL ProcessInforUtil::GetProcessNameFromPid(DWORD pid, TCHAR* tProcName) {
 			return FALSE;
 		}
 	}
-	TCHAR* Buffer = (TCHAR*)calloc(1,PROCNAME_CHAR_COUNT);
+	TCHAR* Buffer = (TCHAR*)calloc(PROCNAME_CHAR_COUNT,sizeof(TCHAR));
 	if (!Buffer) {
 		printf("\tmalloc ß∞‹£¨ERROR: %d\n", GetLastError());
 		return FALSE;
@@ -19,8 +19,9 @@ BOOL ProcessInforUtil::GetProcessNameFromPid(DWORD pid, TCHAR* tProcName) {
 	if (!GetModuleFileNameEx(hProc, NULL, Buffer, PROCNAME_CHAR_COUNT))
 	{
 		// You better call GetLastError() here
-		std::cout << "\t" << "ProcessName   : error" << GetLastError() << std::endl;
+		//std::cout << "\t" << "ProcessName   : error" << GetLastError() << std::endl;
 		free(Buffer);
+		Buffer = NULL;
 		return FALSE;
 	}
 	else

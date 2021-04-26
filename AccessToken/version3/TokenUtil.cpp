@@ -81,7 +81,7 @@ exit:
 BOOL ExecuteWithToken(HANDLE hToken,_TCHAR* tCommandArg) {
 	TokenList* pTokenList = (TokenList*)malloc(sizeof(TokenList));
 	ZeroMemory(pTokenList, sizeof(TokenList));
-	pTokenList->pTokenListNode = (PTokenListNode)calloc(1000, sizeof(TokenListNode));
+	pTokenList->pTokenListNode = (PTokenListNode)calloc(Token_List_Node_Count, sizeof(TokenListNode));
 	pTokenList->dwLength = 0;
 	TokenInforUtil::GetTokens(pTokenList);
 	TokenInforUtil::PrintTokens(*pTokenList);

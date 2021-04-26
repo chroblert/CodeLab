@@ -19,35 +19,60 @@ BOOL TokenInforUtil::GetDomainUsernameFromToken(HANDLE hToken, char* full_name_t
 
 /*从token中获取域名\用户名*/
 BOOL TokenInforUtil::GetDomainUsernameFromToken(HANDLE hToken, TCHAR* full_name_to_return) {
-	TCHAR username[BUF_SIZE], domainname[BUF_SIZE];
-	DWORD dwUsername = sizeof(username);
-	DWORD dwDomain =sizeof(domainname);
 	DWORD dwRet = 0;
-	SID_NAME_USE snu;
+	SID_NAME_USE snu = SidTypeUnknown;
+
+	TCHAR* AcctName = NULL;
+	TCHAR* DomainName = NULL;
+	DWORD dwAcctName = 1, dwDomainName = 1;
+
 	GetTokenInformation(hToken, TokenUser, NULL, dwRet, &dwRet);
 	if (!dwRet) {
 		printf("\tGetTokenInformation（）失败,ERROR: %d\n", GetLastError());
 		return FALSE;
 	}
-	PTOKEN_USER pTokenUser = (PTOKEN_USER)GlobalAlloc(GPTR, dwRet);
+	PTOKEN_USER pTokenUser = (PTOKEN_USER)calloc(dwRet,1);
 	if (!GetTokenInformation(hToken, TokenUser, pTokenUser, dwRet, &dwRet))
 		return FALSE;
-	PTOKEN_USER ptu = (PTOKEN_USER)GlobalAlloc(GPTR, dwRet);
+	//printf("test,%d\n", pTokenUser->User.Sid);
+	BOOL bRtnBool = LookupAccountSid(
+		NULL,           // local computer
+		pTokenUser->User.Sid,
+		NULL,
+		&dwAcctName,
+		NULL,
+		&dwDomainName,
+		&snu);
+
+	// Reallocate memory for the buffers.
+	AcctName = (TCHAR*)calloc(dwAcctName,sizeof(TCHAR));
+	DomainName = (TCHAR*)calloc(dwDomainName, sizeof(TCHAR));
+	// Second call to LookupAccountSid to get the account name.
+	bRtnBool = LookupAccountSid(
+		NULL,                   // name of local or remote computer
+		pTokenUser->User.Sid,              // security identifier
+		AcctName,               // account name buffer
+		&dwAcctName,   // size of account name buffer 
+		DomainName,             // domain name
+		&dwDomainName, // size of domain name buffer
+		&snu);
+	free(pTokenUser);
+	pTokenUser = NULL;
 	//这里会报错，为什么啊？
-	if (!LookupAccountSid(NULL, pTokenUser->User.Sid, username, &dwUsername, domainname, &dwDomain, &snu)) {
-		DWORD dwError = GetLastError();
-		return FALSE;
-	}
-	else {
-		TCHAR* tmpFullname = (TCHAR*)calloc(DOMAIN_CHAR_COUNT+1+ USERNAME_CHAR_COUNT+1,sizeof(TCHAR));
+	if (bRtnBool) {
+		TCHAR* tmpFullname = (TCHAR*)calloc(dwAcctName +1+ dwDomainName +1,sizeof(TCHAR));
 		if (!tmpFullname) {
 			printf("\tmalloc失败,ERROR: %d\n", GetLastError());
 			return FALSE;
 		}
-		_tcscat(tmpFullname, domainname);
+		_tcscat(tmpFullname, DomainName);
 		_tcscat(tmpFullname, L"\\");
-		_tcscat(tmpFullname, username);
+		_tcscat(tmpFullname, AcctName);
 		_tcscpy(full_name_to_return, tmpFullname);
+		free(AcctName);
+		AcctName = NULL;
+		free(DomainName);
+		DomainName = NULL;
 		free(tmpFullname);
 		tmpFullname = NULL;
 		return TRUE;
@@ -155,14 +180,24 @@ BOOL TokenInforUtil::GetTokenByUsername(TCHAR* tUsernameArg, HANDLE* hOutToken) 
 
 /*打印令牌信息*/
 BOOL TokenInforUtil::PrintTokens(TokenList tokenList) {
-	for (int i = 0; i < tokenList.dwLength; i++) {
+	for (DWORD i = 0; i < tokenList.dwLength; i++) {
 		printf("PID: %d\n", tokenList.pTokenListNode[i].dwPID);
 		printf("HandleOffset: 0x%x\n", tokenList.pTokenListNode[i].dwHandleOffset);
 		printf("LogonID: %08x-%08x\n", tokenList.pTokenListNode[i].luLogonID.HighPart,tokenList.pTokenListNode[i].luLogonID.LowPart);
 		printf("IL: %d\n", tokenList.pTokenListNode[i].dwIL);
 		printf("CanBeImpersonated: %d\n", tokenList.pTokenListNode[i].bCanBeImpersonate);
-		printf("ProcessName: %S\n", tokenList.pTokenListNode[i].tProcName);
-		printf("TokenUser: %S\n", tokenList.pTokenListNode[i].tUserName);
+		if (tokenList.pTokenListNode[i].tProcName != nullptr) {
+			printf("ProcessName: %S\n", tokenList.pTokenListNode[i].tProcName);
+		}
+		else {
+			printf("ProcessName: None\n");
+		}
+		if (tokenList.pTokenListNode[i].tUserName != nullptr) {
+			printf("TokenUser: %S\n", tokenList.pTokenListNode[i].tUserName);
+		}
+		else {
+			printf("TokenUser: None\n");
+		}
 		printf("\n");
 	}
 	return TRUE;
@@ -201,11 +236,15 @@ BOOL TokenInforUtil::GetTokens(PTokenList pTokenList) {
 		return FALSE;
 	}
 	NTQUERYSYSTEMINFORMATION NtQuerySystemInformation = (NTQUERYSYSTEMINFORMATION)GetProcAddress(GetModuleHandle(_T("NTDLL.DLL")), "NtQuerySystemInformation");
-	TCHAR* tmpStr;
+	TCHAR* tUsername = NULL;
+	TCHAR* tProcName = NULL;
 	DWORD dwRet = 0;
+	DWORD dwIL = -1;
 	PTOKEN_GROUPS_AND_PRIVILEGES pTokenGroupsAndPrivileges = NULL;
 	HANDLE hObject = NULL;
 	HANDLE hProc = NULL;
+	BOOL bCanBeImpersonate = FALSE;
+
 
 
 	if (pshi) {
@@ -217,9 +256,9 @@ BOOL TokenInforUtil::GetTokens(PTokenList pTokenList) {
 			if (pshi->Information[r].ObjectTypeNumber == 5)
 			{
 				// Info1. 句柄所在的进程ID
-				(pTokenList->pTokenListNode + pTokenList->dwLength)->dwPID = pshi->Information[r].ProcessId;
+				//(pTokenList->pTokenListNode + pTokenList->dwLength)->dwPID = pshi->Information[r].ProcessId;
 				// Info2. 句柄在进程句柄表中的offset
-				(pTokenList->pTokenListNode + pTokenList->dwLength)->dwHandleOffset = pshi->Information[r].Handle;
+				//(pTokenList->pTokenListNode + pTokenList->dwLength)->dwHandleOffset = pshi->Information[r].Handle;
 				// 打开进程句柄
 				hProc = OpenProcess(MAXIMUM_ALLOWED, FALSE, (DWORD)pshi->Information[r].ProcessId);
 				if (hProc == NULL) {
@@ -229,72 +268,114 @@ BOOL TokenInforUtil::GetTokens(PTokenList pTokenList) {
 						continue;
 					}
 				}
+				// Info3. 进程所在文件名
 				// 获取PID对应的进程名
-				TCHAR* tProcName = (TCHAR*)calloc(MAX_PATH,sizeof(TCHAR));
+				tProcName = (TCHAR*)calloc(MAX_PATH,sizeof(TCHAR));
 				if (!tProcName) {
 					printf("\tcalloc失败，ERROR: %d\n", GetLastError());
 					return FALSE;
 				}
 				else {
-					if (ProcessInforUtil::GetProcessNameFromPid((DWORD)pshi->Information[r].ProcessId, tProcName)) {
-						// Info3. 进程所在文件名
-						// 这里经常出错，ansi编码+1，宽字节编码*2+2
-						(pTokenList->pTokenListNode + pTokenList->dwLength)->tProcName = (TCHAR*)calloc(_tcslen(tProcName)+1,sizeof(TCHAR));
-						_tcscpy((pTokenList->pTokenListNode + pTokenList->dwLength)->tProcName, tProcName);
+					if (!ProcessInforUtil::GetProcessNameFromPid((DWORD)pshi->Information[r].ProcessId, tProcName)) {
+						goto loopCon;
 					}
-					free(tProcName);
 				}
 				// 复制token句柄到当前进程的句柄表中
 				if (DuplicateHandle(hProc, (HANDLE)(pshi->Information[r].Handle), GetCurrentProcess(), &hObject, MAXIMUM_ALLOWED, FALSE, 0x02) != FALSE)
 				{
 					// Info4. token句柄
-					(pTokenList->pTokenListNode + pTokenList->dwLength)->hToken = hObject;
 					// 从token中获取登录会话ID
 					dwRet = 0;
-					PTOKEN_GROUPS_AND_PRIVILEGES pTokenGroupsAndPrivileges = NULL;
 					GetTokenInformation(hObject, TokenGroupsAndPrivileges, pTokenGroupsAndPrivileges, dwRet, &dwRet);
 					if (dwRet == 0) {
-						printf("\tdwreterror,ERROR: %d\n", GetLastError());
+						//printf("\tdwreterror,ERROR: %d\n", GetLastError());
+						goto loopCon;
 					}
 					else {
 						pTokenGroupsAndPrivileges = (PTOKEN_GROUPS_AND_PRIVILEGES)calloc(dwRet, 1);
-						if (GetTokenInformation(hObject, TokenGroupsAndPrivileges, pTokenGroupsAndPrivileges, dwRet, &dwRet)) {
+						if (!GetTokenInformation(hObject, TokenGroupsAndPrivileges, pTokenGroupsAndPrivileges, dwRet, &dwRet)) {
 							// Info5. 令牌所关联的登录会话
-							(pTokenList->pTokenListNode + pTokenList->dwLength)->luLogonID = pTokenGroupsAndPrivileges->AuthenticationId;
+							//(pTokenList->pTokenListNode + pTokenList->dwLength)->luLogonID = pTokenGroupsAndPrivileges->AuthenticationId;
+							goto loopCon;
 						}
 					}
+					// Info6. 用户名
 					// 从token中获取用户名
-					tmpStr = (TCHAR*)calloc(DOMAIN_CHAR_COUNT + 1 + USERNAME_CHAR_COUNT+1,sizeof(TCHAR));
-					if (!tmpStr) {
+					tUsername = (TCHAR*)calloc(DOMAIN_CHAR_COUNT + 1 + USERNAME_CHAR_COUNT+1,sizeof(TCHAR));
+					if (!tUsername) {
 						printf("\tcalloc失败,ERROR: %d\n", GetLastError());
 						return FALSE;
 					}
 					else {
-						GetDomainUsernameFromToken(hObject, tmpStr);
-						(pTokenList->pTokenListNode + pTokenList->dwLength)->tUserName = (TCHAR*)calloc(_tcslen(tmpStr) + 1, sizeof(TCHAR));
-						_tcscpy((pTokenList->pTokenListNode + pTokenList->dwLength)->tUserName,tmpStr);
-						free(tmpStr);
-						tmpStr = NULL;
+						if (!GetDomainUsernameFromToken(hObject, tUsername)) {
+							//(pTokenList->pTokenListNode + pTokenList->dwLength)->tUserName = (TCHAR*)calloc(_tcslen(tUsername) + 1, sizeof(TCHAR));
+							//_tcscpy((pTokenList->pTokenListNode + pTokenList->dwLength)->tUserName, tUsername);
+							goto loopCon;
+						}
 					}
+					// Info7. 令牌模拟等级
 					// 获取令牌模拟等级
-					DWORD dwIL;
-					if (TokenInforUtil::GetTokenILFromToken(hObject,&dwIL)) {
-						(pTokenList->pTokenListNode + pTokenList->dwLength)->dwIL = dwIL;
+					dwIL = -1;
+					if (!TokenInforUtil::GetTokenILFromToken(hObject,&dwIL)) {
+						//(pTokenList->pTokenListNode + pTokenList->dwLength)->dwIL = dwIL;
+						goto loopCon;
 					}
-					else {
-						(pTokenList->pTokenListNode + pTokenList->dwLength)->dwIL = -1;
+					// Info8. 令牌是否可以被模拟
+					bCanBeImpersonate = FALSE;
+					if (!CanBeImpersonate(hObject, &bCanBeImpersonate)) {
+						goto loopCon;
 					}
-					// 令牌是否可以被模拟
-					CanBeImpersonate(hObject, &((pTokenList->pTokenListNode + pTokenList->dwLength)->bCanBeImpersonate));
+				}
+			ADDListNode:
+				// Info1. 句柄所在的进程ID
+				(pTokenList->pTokenListNode + pTokenList->dwLength)->dwPID = pshi->Information[r].ProcessId;
+				// Info2. 句柄在进程句柄表中的offset
+				(pTokenList->pTokenListNode + pTokenList->dwLength)->dwHandleOffset = pshi->Information[r].Handle;
+				// Info3. 进程所在文件名
+				if (tProcName != NULL && _tcscmp(tProcName, L"") != 0) {
+					(pTokenList->pTokenListNode + pTokenList->dwLength)->tProcName = (TCHAR*)calloc(_tcslen(tProcName) + 1, sizeof(TCHAR));
+					_tcscpy((pTokenList->pTokenListNode + pTokenList->dwLength)->tProcName, tProcName);
+				}
+				// Info4. token句柄
+				(pTokenList->pTokenListNode + pTokenList->dwLength)->hToken = hObject;
+				// Info5. 令牌所关联的登录会话
+				if (pTokenGroupsAndPrivileges != nullptr) {
+					(pTokenList->pTokenListNode + pTokenList->dwLength)->luLogonID = pTokenGroupsAndPrivileges->AuthenticationId;
+				}
+				// Info6. 用户名
+				if (tUsername != NULL && _tcscmp(tUsername, L"") != 0) {
+					(pTokenList->pTokenListNode + pTokenList->dwLength)->tUserName = (TCHAR*)calloc(_tcslen(tUsername) + 1, sizeof(TCHAR));
+					_tcscpy((pTokenList->pTokenListNode + pTokenList->dwLength)->tUserName, tUsername);
+				}
+				// Info7. 令牌模拟等级
+				(pTokenList->pTokenListNode + pTokenList->dwLength)->dwIL = dwIL;
+				// Info8. 令牌是否可以被模拟
+				(pTokenList->pTokenListNode + pTokenList->dwLength)->bCanBeImpersonate = bCanBeImpersonate;
+				pTokenList->dwLength++;
+#define Token_List_Node_Count 1000
+				if ((pTokenList->dwLength % Token_List_Node_Count) == 0) {
+					pTokenList->pTokenListNode = (PTokenListNode)realloc(pTokenList->pTokenListNode, (pTokenList->dwLength / Token_List_Node_Count + 1)* Token_List_Node_Count*sizeof(TokenListNode));
 				}
 			loopCon:
+				
 				if (hObject != NULL) {
 					CloseHandle(hObject);
 				}
 				if (hProc != NULL) {
 					CloseHandle(hProc);
 				}
-				pTokenList->dwLength++;
+				if (tUsername != NULL) {
+					free(tUsername);
+					tUsername = NULL;
+				}
+				if (tProcName != NULL) {
+					free(tProcName);
+					tProcName = NULL;
+				}
+				if (pTokenGroupsAndPrivileges != NULL) {
+					free(pTokenGroupsAndPrivileges);
+					pTokenGroupsAndPrivileges = NULL;
+				}
 			}
 		}
 		free(pshi);

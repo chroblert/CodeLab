@@ -4,7 +4,7 @@
 #include <tchar.h>
 #include <Windows.h>
 #include "TokenInforUtil.h"
-
+#define Token_List_Node_Count 1000
 extern TCHAR* tUserName = NULL;
 extern TCHAR* tCommand = NULL;
 extern TCHAR* tModule = NULL;
