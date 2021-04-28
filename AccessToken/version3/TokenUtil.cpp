@@ -113,6 +113,29 @@ BOOL ListTokens(_TCHAR* tUserName,BOOL bVerbose) {
 	return TRUE;
 }
 
+BOOL ReleaseTokenListNode(TokenListNode* pTokenListNode) {
+	if (pTokenListNode->tProcName) {
+		free(pTokenListNode->tProcName);
+		pTokenListNode->tProcName = NULL;
+	}
+	if (pTokenListNode->tUserName) {
+		free(pTokenListNode->tUserName);
+		pTokenListNode->tUserName = NULL;
+	}
+	if (pTokenListNode->hToken){
+		CloseHandle(pTokenListNode->hToken);
+	}
+	ZeroMemory(pTokenListNode, sizeof(TokenListNode));
+	return TRUE;
+}
+BOOL ReleaseTokenList(TokenList* pTokenList) {
+	for (DWORD i = 0; i < pTokenList->dwLength; i++) {
+		ReleaseTokenListNode(pTokenList->pTokenListNode + pTokenList->dwLength);
+	}
+	ZeroMemory(pTokenList, sizeof(TokenList));
+	return TRUE;
+}
+
 BOOL ExecuteWithToken(HANDLE hToken,_TCHAR* tUserName,_TCHAR* tCommandArg) {
 	TokenList* pTokenList = (TokenList*)malloc(sizeof(TokenList));
 	ZeroMemory(pTokenList, sizeof(TokenList));
@@ -217,12 +240,17 @@ BOOL ExecuteWithToken(HANDLE hToken,_TCHAR* tUserName,_TCHAR* tCommandArg) {
 		ReadFile(hParentRead, szBuffer, 10, &dwReadedBytes, NULL);
 		std::cout << szBuffer;
 	}
+	if (pTokenList) {
+		ReleaseTokenList(pTokenList);
+		free(pTokenList);
+		pTokenList = NULL;
+	}
 	return 0;
 }
 
 
 
-BOOL HandleArgument(_TCHAR* tModule,int argc,_TCHAR* argv[]) {
+BOOL HandleArgument(_TCHAR* tModuleArg,int argc,_TCHAR* argv[]) {
 	//_TCHAR* tTmpChr = {};
 	_TCHAR** tArgv;
 	tArgv = (_TCHAR**)calloc(argc - 1,sizeof(_TCHAR*));
@@ -236,7 +264,7 @@ BOOL HandleArgument(_TCHAR* tModule,int argc,_TCHAR* argv[]) {
 	char opt;
 	//TCHAR* optStr = NULL;
 	// 判断传进来的是哪一个module
-	if (!_tcscmp(tModule, L"ListTokens")) {
+	if (!_tcscmp(tModuleArg, L"ListTokens")) {
 		// 从命令行获取参数
 		while ((opt = getopt(argc-1, tArgv, "p:t:lcvpu:e:")) != -1) {
 			switch (opt) {
@@ -262,10 +290,10 @@ BOOL HandleArgument(_TCHAR* tModule,int argc,_TCHAR* argv[]) {
 		// ListTokens
 		ListTokens(tUserName, TRUE);
 	}
-	else if (!_tcscmp(tModule, L"ListLogonSession")) {
+	else if (!_tcscmp(tModuleArg, L"ListLogonSession")) {
 
 	}
-	else if (!_tcscmp(tModule, L"Execute")) {
+	else if (!_tcscmp(tModuleArg, L"Execute")) {
 		// 从命令行获取参数
 		while ((opt = getopt(argc - 1, tArgv, "u:e:")) != -1) {
 			switch (opt) {
@@ -310,8 +338,10 @@ int _tmain(int argc, _TCHAR* argv[])
 	}
 	if (tModule != NULL) {
 		HandleArgument(tModule, argc, argv);
-		free(tModule);
-		tModule = NULL;
+		// 这里如果不注释掉会报错:CRT detected that the application wrote memory after end of heap buffer
+		// 难道是因为会无法释放全局变量
+		//free(tModule);
+		//tModule = NULL;
 	}
 	else {
 		Helper::print_usage();
