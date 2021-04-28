@@ -30,6 +30,9 @@
     <ClCompile Include="ProcessInforUtil.cpp">
       <Filter>源文件</Filter>
     </ClCompile>
+    <ClCompile Include="Execute.cpp">
+      <Filter>源文件</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="getopt.h">
@@ -45,6 +48,12 @@
       <Filter>头文件</Filter>
     </ClInclude>
     <ClInclude Include="ProcessInforUtil.h">
+      <Filter>头文件</Filter>
+    </ClInclude>
+    <ClInclude Include="Execute.h">
+      <Filter>头文件</Filter>
+    </ClInclude>
+    <ClInclude Include="settings.h">
       <Filter>头文件</Filter>
     </ClInclude>
   </ItemGroup>

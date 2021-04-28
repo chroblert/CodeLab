@@ -142,6 +142,7 @@
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
+    <ClCompile Include="Execute.cpp" />
     <ClCompile Include="getopt.cpp" />
     <ClCompile Include="Helper.cpp" />
     <ClCompile Include="ProcessInforUtil.cpp" />
@@ -149,9 +150,11 @@
     <ClCompile Include="TokenUtil.cpp" />
   </ItemGroup>
   <ItemGroup>
+    <ClInclude Include="Execute.h" />
     <ClInclude Include="getopt.h" />
     <ClInclude Include="Helper.h" />
     <ClInclude Include="ProcessInforUtil.h" />
+    <ClInclude Include="settings.h" />
     <ClInclude Include="TokenInforUtil.h" />
     <ClInclude Include="TokenUtil.h" />
   </ItemGroup>

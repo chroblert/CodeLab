@@ -96,6 +96,29 @@ BOOL TokenInforUtil::GetDomainUsernameFromToken(HANDLE hToken, TCHAR* full_name_
 }
 
 
+BOOL TokenInforUtil::ReleaseTokenListNode(TokenListNode* pTokenListNode) {
+	if (pTokenListNode->tProcName) {
+		free(pTokenListNode->tProcName);
+		pTokenListNode->tProcName = NULL;
+	}
+	if (pTokenListNode->tUserName) {
+		free(pTokenListNode->tUserName);
+		pTokenListNode->tUserName = NULL;
+	}
+	if (pTokenListNode->hToken) {
+		CloseHandle(pTokenListNode->hToken);
+	}
+	ZeroMemory(pTokenListNode, sizeof(TokenListNode));
+	return TRUE;
+}
+BOOL TokenInforUtil::ReleaseTokenList(TokenList* pTokenList) {
+	for (DWORD i = 0; i < pTokenList->dwLength; i++) {
+		ReleaseTokenListNode(pTokenList->pTokenListNode + pTokenList->dwLength);
+	}
+	ZeroMemory(pTokenList, sizeof(TokenList));
+	return TRUE;
+}
+
 /*判断该token是否可以被模拟*/
 BOOL TokenInforUtil::CanBeImpersonate(HANDLE hToken, BOOL* bRet) {
 	HANDLE temp_token;

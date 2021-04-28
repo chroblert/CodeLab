@@ -113,140 +113,9 @@ BOOL ListTokens(_TCHAR* tUserName,BOOL bVerbose) {
 	return TRUE;
 }
 
-BOOL ReleaseTokenListNode(TokenListNode* pTokenListNode) {
-	if (pTokenListNode->tProcName) {
-		free(pTokenListNode->tProcName);
-		pTokenListNode->tProcName = NULL;
-	}
-	if (pTokenListNode->tUserName) {
-		free(pTokenListNode->tUserName);
-		pTokenListNode->tUserName = NULL;
-	}
-	if (pTokenListNode->hToken){
-		CloseHandle(pTokenListNode->hToken);
-	}
-	ZeroMemory(pTokenListNode, sizeof(TokenListNode));
-	return TRUE;
-}
-BOOL ReleaseTokenList(TokenList* pTokenList) {
-	for (DWORD i = 0; i < pTokenList->dwLength; i++) {
-		ReleaseTokenListNode(pTokenList->pTokenListNode + pTokenList->dwLength);
-	}
-	ZeroMemory(pTokenList, sizeof(TokenList));
-	return TRUE;
-}
 
-BOOL ExecuteWithToken(HANDLE hToken,_TCHAR* tUserName,_TCHAR* tCommandArg) {
-	TokenList* pTokenList = (TokenList*)malloc(sizeof(TokenList));
-	ZeroMemory(pTokenList, sizeof(TokenList));
-	pTokenList->pTokenListNode = (PTokenListNode)calloc(Token_List_Node_Count, sizeof(TokenListNode));
-	pTokenList->dwLength = 0;
-	TokenInforUtil::GetTokens(pTokenList);
-	//TokenInforUtil::PrintTokens(*pTokenList);
-	TokenInforUtil::GetTokenByUsername(*pTokenList, tUserName, &hToken);
-	//return TRUE;
-	HANDLE hParentRead, hParentWrite, hChildRead, hChildWrite; //创建4个句柄
-	HANDLE hNewToken;
 
-	STARTUPINFO si = { 0 };							//启动信息结构体
-	si.cb = sizeof(si);
-	PROCESS_INFORMATION pi = { 0 };                 //进程信息结构体
 
-	DWORD dwWritedBytes = 0;
-	DWORD dwReadedBytes = 0;
-
-	DWORD dwBytesRead = 0;
-	DWORD dwTotalBytesAvail = 0;
-	DWORD dwBytesLeftThisMessage = 0;
-
-	SECURITY_ATTRIBUTES sa = { 0 };				   //安全属性描述符		
-	sa.nLength = sizeof(SECURITY_ATTRIBUTES);
-	sa.bInheritHandle = TRUE;                      //设置句柄可继承
-
-	//创建管道1. 父进程读 -> 子进程写入
-	BOOL bRet = CreatePipe(&hParentRead,
-		&hChildWrite,
-		&sa,
-		0);
-	//创建管道2.  子进程读->父进程写.
-	bRet = CreatePipe(&hChildRead,
-		&hParentWrite,
-		&sa,
-		0);
-	//这里将子进程写重定向到 stdout中. 子进程读取重定向到stdinput中
-	si.hStdInput = hChildRead;
-	si.hStdOutput = hChildWrite;
-	si.dwFlags = STARTF_USESTDHANDLES;   //设置窗口隐藏启动
-	wchar_t lpwstrTmp[15] = L"cmd.exe";
-	if(NULL == hToken){
-		bRet = CreateProcessW(NULL,
-			lpwstrTmp,                      //创建cmd进程.默认寻找cmd进程.
-			NULL,
-			NULL,
-			TRUE,
-			CREATE_NO_WINDOW,
-			NULL,
-			NULL,
-			&si,
-			&pi);
-	}
-	else {
-		// Create primary token
-		if (!DuplicateTokenEx(hToken, TOKEN_ALL_ACCESS, NULL, SecurityImpersonation, TokenPrimary, &hNewToken))
-		{
-			printf("User: %S,Token: %d ,ERROR: %d\n", tUserName, hToken, GetLastError());
-			HANDLE hTmpToken;
-			if (!OpenThreadToken(GetCurrentThread(), TOKEN_ALL_ACCESS, TRUE, &hTmpToken)) {
-				if (!OpenProcessToken(GetCurrentProcess(), TOKEN_ALL_ACCESS, &hTmpToken)) {
-					printf("ERROR: %d\n", GetLastError());
-					return FALSE;
-				}
-			}
-			// Duplicate to make primary token 
-			if (!DuplicateTokenEx(hTmpToken, TOKEN_ALL_ACCESS, NULL, SecurityImpersonation, TokenPrimary, &hNewToken))
-			{
-				printf("[-] Failed to duplicate token to primary token: %d\n", GetLastError());
-				return FALSE;
-			}
-			CloseHandle(hTmpToken);
-		}
-		bRet = CreateProcessWithTokenW(hNewToken,
-			0, // logon flags
-			0, // application name
-			lpwstrTmp, // command-line
-			0, // creation flags
-			NULL, // environment - inherit from parent
-			NULL, // current directory
-			&si,
-			&pi);
-	}
-	if (!bRet) {
-		std::cout << GetLastError() << std::endl;
-	}
-	char szBuffer[100];
-	sprintf(szBuffer, "@echo on\n%S\nexit\n", tCommandArg);
-	//printf("%s\n", szBuffer);
-	WriteFile(hParentWrite, szBuffer, sizeof(szBuffer), &dwWritedBytes, NULL);//使用writeFile操作管道,给cmd发送数据命令.
-	// 等待命令执行结束
-	//WaitForSingleObject(pi.hThread, INFINITE);
-	// [-]210419BUG: 有些命令一直处于等待状态，如："hostname && whoami",好像是因为空格的问题
-	WaitForSingleObject(pi.hThread, 5000);
-	WaitForSingleObject(pi.hProcess, 5000);
-	ZeroMemory(szBuffer, 15);
-	ReadFile(hParentRead, szBuffer, 10, &dwReadedBytes, NULL);
-	std::cout << szBuffer;
-	while (dwReadedBytes >= 10) {
-		ZeroMemory(szBuffer, 15);
-		ReadFile(hParentRead, szBuffer, 10, &dwReadedBytes, NULL);
-		std::cout << szBuffer;
-	}
-	if (pTokenList) {
-		ReleaseTokenList(pTokenList);
-		free(pTokenList);
-		pTokenList = NULL;
-	}
-	return 0;
-}
 
 
 
@@ -294,8 +163,9 @@ BOOL HandleArgument(_TCHAR* tModuleArg,int argc,_TCHAR* argv[]) {
 
 	}
 	else if (!_tcscmp(tModuleArg, L"Execute")) {
+		bConsoleMode = FALSE;
 		// 从命令行获取参数
-		while ((opt = getopt(argc - 1, tArgv, "u:e:")) != -1) {
+		while ((opt = getopt(argc - 1, tArgv, "u:e:c")) != -1) {
 			switch (opt) {
 			case 'u': //用户名
 				printf("%c -> %S\n", opt, optarg);
@@ -307,13 +177,17 @@ BOOL HandleArgument(_TCHAR* tModuleArg,int argc,_TCHAR* argv[]) {
 				tCommand = (TCHAR*)malloc(sizeof(optarg));
 				_tcscpy(tCommand, optarg);
 				break;
+			case 'c':
+				printf("%c -> 1\n", opt);
+				bConsoleMode = TRUE;
+				break;
 			default: //输出帮助文档
 				Helper::print_usage();
 				exit(1);
 			}
 		}
 		// 执行命令
-		ExecuteWithToken(NULL,tUserName,tCommand);
+		Execute::ExecuteWithUsername(tUserName,tCommand, bConsoleMode);
 	}
 	else {
 		Helper::print_usage();
