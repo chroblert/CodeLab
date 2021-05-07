@@ -20,6 +20,7 @@ BOOL ListTokens(_TCHAR* tUserName,BOOL bVerbose,DWORD dwPid,TCHAR* tProcName) {
 	pTokenList->dwLength = 0;
 	TokenInforUtil::GetTokens(pTokenList);
 	TokenList tokenList = *pTokenList;
+	BOOL bRres = dwPid == -1;
 	for (DWORD i = 0; i < tokenList.dwLength; i++) {
 		if (tUserName != NULL && tokenList.pTokenListNode[i].tUserName != nullptr && _tcscmp(tokenList.pTokenListNode[i].tUserName, tUserName) != 0) {
 			continue;
@@ -29,12 +30,6 @@ BOOL ListTokens(_TCHAR* tUserName,BOOL bVerbose,DWORD dwPid,TCHAR* tProcName) {
 		}
 		if (dwPid != -1 && tokenList.pTokenListNode[i].dwPID != dwPid) {
 			continue;
-		}
-		if (_tcsstr(tokenList.pTokenListNode[i].tProcName, tProcName) == NULL) {
-			printf("不存在\n");
-		}
-		else {
-			printf("存在\n");
 		}
 		printf("PID: %d\n", tokenList.pTokenListNode[i].dwPID);
 		printf("HandleOffset: 0x%x\n", tokenList.pTokenListNode[i].dwHandleOffset);
