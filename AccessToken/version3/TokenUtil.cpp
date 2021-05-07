@@ -89,7 +89,7 @@ BOOL HandleArgument(_TCHAR* tModuleArg,DWORD argc,_TCHAR* argv[]) {
 			switch (opt) {
 			case 'u':
 				printf("%c -> %S\n", opt, optarg);
-				tUserName = (TCHAR*)calloc(1,sizeof(optarg));
+				tUserName = (TCHAR*)calloc(_tcslen(optarg), sizeof(TCHAR));
 				_tcscpy(tUserName, optarg);
 				break;
 			case 'p': //列出指定pid或所有进程中的令牌
@@ -98,7 +98,7 @@ BOOL HandleArgument(_TCHAR* tModuleArg,DWORD argc,_TCHAR* argv[]) {
 				break;
 			case 'P':
 				printf("%c -> %S\n", opt, optarg);
-				tProcName = (TCHAR*)calloc(1,sizeof(optarg));
+				tProcName = (TCHAR*)calloc(_tcslen(optarg), sizeof(TCHAR));
 				_tcscpy(tProcName, optarg);
 				break;
 			case 't': //列出指定tid或所有线程中的模拟令牌
@@ -126,12 +126,13 @@ BOOL HandleArgument(_TCHAR* tModuleArg,DWORD argc,_TCHAR* argv[]) {
 			switch (opt) {
 			case 'u': //用户名
 				printf("%c -> %S\n", opt, optarg);
-				tUserName = (TCHAR*)calloc(20,sizeof(optarg));
+				tUserName = (TCHAR*)calloc(_tcslen(optarg),sizeof(TCHAR));
+				printf("%d\n", _tcslen(optarg));
 				_tcscpy(tUserName, optarg);
 				break;
 			case 'e': //列出当前进程的令牌信息
 				printf("%c -> %S\n", opt, optarg);
-				tCommand = (TCHAR*)calloc(20,sizeof(optarg));
+				tCommand = (TCHAR*)calloc(_tcslen(optarg),sizeof(TCHAR));
 				_tcscpy(tCommand, optarg);
 				break;
 			case 'c':
