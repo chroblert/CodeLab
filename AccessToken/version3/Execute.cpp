@@ -6,13 +6,19 @@
 /*使用传进来的username执行命令*/
 BOOL Execute::ExecuteWithUsername(TCHAR* tUserName, TCHAR* tCommandArg,BOOL bConsoleMode) {
 
-	HANDLE hToken;
-	TokenList* pTokenList = (TokenList*)malloc(sizeof(TokenList));
-	ZeroMemory(pTokenList, sizeof(TokenList));
+	HANDLE hToken = NULL;
+	TokenList* pTokenList = (TokenList*)calloc(1,sizeof(TokenList));
 	pTokenList->pTokenListNode = (PTokenListNode)calloc(Token_List_Node_Count, sizeof(TokenListNode));
 	pTokenList->dwLength = 0;
 	TokenInforUtil::GetTokens(pTokenList);
-	TokenInforUtil::GetTokenByUsername(*pTokenList, tUserName, &hToken);
+	if (!TokenInforUtil::GetTokenByUsername(*pTokenList, tUserName, &hToken)) {
+		printf("获取%S用户的令牌失败\n", tUserName);
+		// 释放令牌List
+		if (pTokenList) {
+			TokenInforUtil::ReleaseTokenList(pTokenList);
+		}
+		return FALSE;
+	}
 	// 210507: 枚举获取到的所有令牌，找到具有SeAssignPrimaryTokenPrivilege权限的令牌，因为CreateProcessAsUser()函数需要这个权限，不然之后会报错：1314
 	//[-] Failed to create new process: 1314
 	for (DWORD i = 0; i < pTokenList->dwLength; i++) {
@@ -22,12 +28,11 @@ BOOL Execute::ExecuteWithUsername(TCHAR* tUserName, TCHAR* tCommandArg,BOOL bCon
 		}
 	}
 	ExecuteWithToken(hToken, tCommandArg, bConsoleMode);
-	CloseHandle(hToken);
+	if(hToken != NULL)
+		CloseHandle(hToken);
 	// 释放令牌List
 	if (pTokenList) {
 		TokenInforUtil::ReleaseTokenList(pTokenList);
-		free(pTokenList);
-		pTokenList = NULL;
 	}
 	return TRUE;
 }
@@ -131,8 +136,12 @@ void Execute::create_process(HANDLE token, TCHAR* command, BOOL console_mode, SE
 		else
 			printf("[-] Failed to create new process: %d\n", GetLastError());
 	}
-
-	CloseHandle(primary_token);
+	if (primary_token != NULL) {
+		CloseHandle(primary_token);
+	}
+	if (new_token != NULL) {
+		CloseHandle(new_token);
+	}
 }
 
 

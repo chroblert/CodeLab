@@ -24,7 +24,9 @@ BOOL TokenInforUtil::GetDomainUsernameFromToken(HANDLE hToken, TCHAR* full_name_
 
 	TCHAR* AcctName = NULL;
 	TCHAR* DomainName = NULL;
+	TCHAR* tmpFullname = NULL;
 	DWORD dwAcctName = 1, dwDomainName = 1;
+	BOOL bRtnBool = FALSE;
 
 	GetTokenInformation(hToken, TokenUser, NULL, dwRet, &dwRet);
 	if (!dwRet) {
@@ -33,12 +35,12 @@ BOOL TokenInforUtil::GetDomainUsernameFromToken(HANDLE hToken, TCHAR* full_name_
 	}
 	PTOKEN_USER pTokenUser = (PTOKEN_USER)calloc(dwRet,1);
 	if (!pTokenUser) {
-		return FALSE;
+		goto FAIL;
 	}
 	if (!GetTokenInformation(hToken, TokenUser, pTokenUser, dwRet, &dwRet))
-		return FALSE;
+		goto FAIL;
 	//printf("test,%d\n", pTokenUser->User.Sid);
-	BOOL bRtnBool = LookupAccountSid(
+	bRtnBool = LookupAccountSid(
 		NULL,           // local computer
 		pTokenUser->User.Sid,
 		NULL,
@@ -48,13 +50,13 @@ BOOL TokenInforUtil::GetDomainUsernameFromToken(HANDLE hToken, TCHAR* full_name_
 		&snu);
 
 	// Reallocate memory for the buffers.
-	AcctName = (TCHAR*)calloc(dwAcctName,sizeof(TCHAR));
+	AcctName = (TCHAR*)calloc(dwAcctName+1,sizeof(TCHAR));
 	if (!AcctName) {
-		return FALSE;
+		goto FAIL;
 	}
-	DomainName = (TCHAR*)calloc(dwDomainName, sizeof(TCHAR));
+	DomainName = (TCHAR*)calloc(dwDomainName+1, sizeof(TCHAR));
 	if (!DomainName) {
-		return FALSE;
+		goto FAIL;
 	}
 	// Second call to LookupAccountSid to get the account name.
 	bRtnBool = LookupAccountSid(
@@ -65,15 +67,14 @@ BOOL TokenInforUtil::GetDomainUsernameFromToken(HANDLE hToken, TCHAR* full_name_
 		DomainName,             // domain name
 		&dwDomainName, // size of domain name buffer
 		&snu);
-	free(pTokenUser);
-	pTokenUser = NULL;
+
 	//这里会报错，为什么啊？
+	tmpFullname = (TCHAR*)calloc(dwAcctName+2 + 1 + dwDomainName + 1, sizeof(TCHAR));
+	if (!tmpFullname) {
+		printf("\tmalloc失败,ERROR: %d\n", GetLastError());
+		goto FAIL;
+	}
 	if (bRtnBool) {
-		TCHAR* tmpFullname = (TCHAR*)calloc(dwAcctName +1+ dwDomainName +1,sizeof(TCHAR));
-		if (!tmpFullname) {
-			printf("\tmalloc失败,ERROR: %d\n", GetLastError());
-			return FALSE;
-		}
 		_tcscat(tmpFullname, DomainName);
 		_tcscat(tmpFullname, L"\\");
 		_tcscat(tmpFullname, AcctName);
@@ -90,12 +91,36 @@ BOOL TokenInforUtil::GetDomainUsernameFromToken(HANDLE hToken, TCHAR* full_name_
 			free(tmpFullname);
 			tmpFullname = NULL;
 		}
+		// 释放pTokenUser
+		if (pTokenUser != NULL) {
+			free(pTokenUser);
+			pTokenUser = NULL;
+		}
 		return TRUE;
 	}
+FAIL:
+	// 释放pTokenUser
+	if (pTokenUser != NULL) {
+		free(pTokenUser);
+		pTokenUser = NULL;
+	}
+	if (AcctName != NULL) {
+		free(AcctName);
+		AcctName = NULL;
+	}
+	if (DomainName != NULL) {
+		free(DomainName);
+		DomainName = NULL;
+	}
+	if (tmpFullname != NULL) {
+		free(tmpFullname);
+		tmpFullname = NULL;
+	}
+	return FALSE;
 
 }
 
-
+/*释放链表中的节点*/
 BOOL TokenInforUtil::ReleaseTokenListNode(TokenListNode* pTokenListNode) {
 	if (pTokenListNode->tProcName) {
 		free(pTokenListNode->tProcName);
@@ -147,7 +172,7 @@ BOOL TokenInforUtil::GetTokenILFromToken(HANDLE hToken, DWORD* dwIL) {
 	DWORD dwRet = 0;
 	// 获取令牌模拟等级信息，若获取到，则判断模拟等级是不是大于等于模拟
 	GetTokenInformation(hToken, TokenImpersonationLevel, pTokenIL, NULL, &dwRet);
-	pTokenIL = (PSECURITY_IMPERSONATION_LEVEL)malloc(dwRet);
+	pTokenIL = (PSECURITY_IMPERSONATION_LEVEL)calloc(1,dwRet);
 	if (!pTokenIL) {
 		printf("\tmalloc失败，ERROR: %d\n", GetLastError());
 		return FALSE;
@@ -159,7 +184,15 @@ BOOL TokenInforUtil::GetTokenILFromToken(HANDLE hToken, DWORD* dwIL) {
 	else {
 		//printf("\t获取令牌中的模拟等级失败，ERROR: %d\n", GetLastError());
 		*dwIL = -1;
+		if (pTokenIL != NULL) {
+			free(pTokenIL);
+			pTokenIL = NULL;
+		}
 		return FALSE;
+	}
+	if (pTokenIL != NULL) {
+		free(pTokenIL);
+		pTokenIL = NULL;
 	}
 	return TRUE;
 }
@@ -178,7 +211,7 @@ BOOL TokenInforUtil::GetTokenTypeFromToken(HANDLE hToken,DWORD* dwTokenType) {
 		return FALSE;
 	}
 
-	pTokenTypeInfo = (DWORD*)malloc(dwRet);
+	pTokenTypeInfo = (DWORD*)calloc(1,dwRet);
 	if (!pTokenTypeInfo) {
 		printf("\tmalloc失败，ERROR: %d\n", GetLastError());
 		return FALSE;
@@ -195,9 +228,17 @@ BOOL TokenInforUtil::GetTokenTypeFromToken(HANDLE hToken,DWORD* dwTokenType) {
 		default:
 			printf(" \tTokenType\t: Error: %d\n", error);
 			*dwTokenType = -1;
+			if (pTokenTypeInfo != NULL) {
+				free(pTokenTypeInfo);
+				pTokenTypeInfo = NULL;
+			}
 			return FALSE;
 		}
 		*dwTokenType = *pTokenTypeInfo;
+		if (pTokenTypeInfo != NULL) {
+			free(pTokenTypeInfo);
+			pTokenTypeInfo = NULL;
+		}
 		return TRUE;
 	}
 	else {
@@ -224,7 +265,8 @@ BOOL TokenInforUtil::GetTokenByUsername(TokenList tokenList,TCHAR* tUsernameArg,
 			return TRUE;
 		}
 	}
-	return TRUE;
+	if(*hOutToken == NULL)
+		return FALSE;
 }
 
 
@@ -275,6 +317,10 @@ BOOL TokenInforUtil::PrintPriv(HANDLE hToken) {
 			printf("%ws\n", lpszAttrbutes);
 		}
 	}
+	if (ppriv != NULL) {
+		free(ppriv);
+		ppriv = NULL;
+	}
 	return TRUE;
 }
 
@@ -314,7 +360,7 @@ BOOL TokenInforUtil::PrintTokens(TokenList tokenList) {
 /*获取系统中的所有令牌*/
 BOOL TokenInforUtil::GetTokens(PTokenList pTokenList) {
 	NTSTATUS status;
-	PSYSTEM_HANDLE_INFORMATION_EX pshi = (PSYSTEM_HANDLE_INFORMATION_EX)malloc(sizeof(SYSTEM_HANDLE_INFORMATION_EX));
+	PSYSTEM_HANDLE_INFORMATION_EX pshi = (PSYSTEM_HANDLE_INFORMATION_EX)calloc(1,sizeof(SYSTEM_HANDLE_INFORMATION_EX));
 	if (!pshi) {
 		printf("\tmalloc失败，ERROR: %d\n", GetLastError());
 		return FALSE;
@@ -467,6 +513,7 @@ BOOL TokenInforUtil::GetTokens(PTokenList pTokenList) {
 			}
 		}
 		free(pshi);
+		pshi = NULL;
 	}else {
 		return FALSE;
 	}

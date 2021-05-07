@@ -13,9 +13,9 @@
 
 
 /*ListTokens*/
-BOOL ListTokens(_TCHAR* tUserName,BOOL bVerbose) {
-	TokenList* pTokenList = (TokenList*)malloc(sizeof(TokenList));
-	ZeroMemory(pTokenList, sizeof(TokenList));
+BOOL ListTokens(_TCHAR* tUserName,BOOL bVerbose,DWORD dwPid,TCHAR* tProcName) {
+	TokenList* pTokenList = (TokenList*)calloc(1,sizeof(TokenList));
+	//ZeroMemory(pTokenList, sizeof(TokenList));
 	pTokenList->pTokenListNode = (PTokenListNode)calloc(Token_List_Node_Count, sizeof(TokenListNode));
 	pTokenList->dwLength = 0;
 	TokenInforUtil::GetTokens(pTokenList);
@@ -23,6 +23,18 @@ BOOL ListTokens(_TCHAR* tUserName,BOOL bVerbose) {
 	for (DWORD i = 0; i < tokenList.dwLength; i++) {
 		if (tUserName != NULL && tokenList.pTokenListNode[i].tUserName != nullptr && _tcscmp(tokenList.pTokenListNode[i].tUserName, tUserName) != 0) {
 			continue;
+		}
+		if (tProcName != NULL && tokenList.pTokenListNode[i].tProcName != nullptr && _tcsstr(tokenList.pTokenListNode[i].tProcName, tProcName) == NULL) {
+			continue;
+		}
+		if (dwPid != -1 && tokenList.pTokenListNode[i].dwPID != dwPid) {
+			continue;
+		}
+		if (_tcsstr(tokenList.pTokenListNode[i].tProcName, tProcName) == NULL) {
+			printf("不存在\n");
+		}
+		else {
+			printf("存在\n");
 		}
 		printf("PID: %d\n", tokenList.pTokenListNode[i].dwPID);
 		printf("HandleOffset: 0x%x\n", tokenList.pTokenListNode[i].dwHandleOffset);
@@ -43,40 +55,51 @@ BOOL ListTokens(_TCHAR* tUserName,BOOL bVerbose) {
 		}
 		printf("\n");
 	}
+	// 释放令牌List
+	if (pTokenList) {
+		TokenInforUtil::ReleaseTokenList(pTokenList);
+		free(pTokenList);
+		pTokenList = NULL;
+	}
 	return TRUE;
 }
 
 
-
-
-
-
-
-BOOL HandleArgument(_TCHAR* tModuleArg,int argc,_TCHAR* argv[]) {
+BOOL HandleArgument(_TCHAR* tModuleArg,DWORD argc,_TCHAR* argv[]) {
 	//_TCHAR* tTmpChr = {};
 	_TCHAR** tArgv;
 	tArgv = (_TCHAR**)calloc(argc - 1,sizeof(_TCHAR*));
 	if (!tArgv) {
 		return FALSE;
 	}
-	for (int i = 1; i < argc; i++) {
+	for (DWORD i = 1; i < argc; i++) {
 		tArgv[i - 1] = argv[i];
 	}
 	// OPTION
 	char opt;
+	DWORD dwPid = -1;  // -p 进程id
+	TCHAR* tUserName = NULL; // -u 用户名
+	TCHAR* tProcName = NULL; // -P 进程名
+	TCHAR* tCommand = NULL; // -e 命令
 	//TCHAR* optStr = NULL;
 	// 判断传进来的是哪一个module
 	if (!_tcscmp(tModuleArg, L"ListTokens")) {
 		// 从命令行获取参数
-		while ((opt = getopt(argc-1, tArgv, "p:t:lcvpu:e:")) != -1) {
+		while ((opt = getopt(argc-1, tArgv, "p:P:t:lcvpu:e:")) != -1) {
 			switch (opt) {
 			case 'u':
 				printf("%c -> %S\n", opt, optarg);
-				tUserName = (TCHAR*)malloc(sizeof(optarg));
+				tUserName = (TCHAR*)calloc(1,sizeof(optarg));
 				_tcscpy(tUserName, optarg);
 				break;
 			case 'p': //列出指定pid或所有进程中的令牌
 				printf("%c -> %S\n", opt, optarg);
+				dwPid = _ttoi(optarg);
+				break;
+			case 'P':
+				printf("%c -> %S\n", opt, optarg);
+				tProcName = (TCHAR*)calloc(1,sizeof(optarg));
+				_tcscpy(tProcName, optarg);
 				break;
 			case 't': //列出指定tid或所有线程中的模拟令牌
 				printf("%c -> %S\n", opt, optarg);
@@ -86,11 +109,11 @@ BOOL HandleArgument(_TCHAR* tModuleArg,int argc,_TCHAR* argv[]) {
 				break;
 			default: //输出帮助文档
 				Helper::print_usage();
-				exit(1);
+				goto EXIT;
 			}
 		}
 		// ListTokens
-		ListTokens(tUserName, TRUE);
+		ListTokens(tUserName, TRUE,dwPid,tProcName);
 	}
 	else if (!_tcscmp(tModuleArg, L"ListLogonSession")) {
 
@@ -103,12 +126,12 @@ BOOL HandleArgument(_TCHAR* tModuleArg,int argc,_TCHAR* argv[]) {
 			switch (opt) {
 			case 'u': //用户名
 				printf("%c -> %S\n", opt, optarg);
-				tUserName = (TCHAR*)malloc(sizeof(optarg));
+				tUserName = (TCHAR*)calloc(20,sizeof(optarg));
 				_tcscpy(tUserName, optarg);
 				break;
 			case 'e': //列出当前进程的令牌信息
 				printf("%c -> %S\n", opt, optarg);
-				tCommand = (TCHAR*)malloc(sizeof(optarg));
+				tCommand = (TCHAR*)calloc(20,sizeof(optarg));
 				_tcscpy(tCommand, optarg);
 				break;
 			case 'c':
@@ -117,7 +140,7 @@ BOOL HandleArgument(_TCHAR* tModuleArg,int argc,_TCHAR* argv[]) {
 				break;
 			default: //输出帮助文档
 				Helper::print_usage();
-				exit(1);
+				goto EXIT;
 			}
 		}
 		// 执行命令
@@ -126,8 +149,28 @@ BOOL HandleArgument(_TCHAR* tModuleArg,int argc,_TCHAR* argv[]) {
 	else {
 		Helper::print_usage();
 	}
+	EXIT:
+	// 释放创建的TCHAR指针
+	if (tUserName != NULL)
+	{
+		free(tUserName);
+		tUserName = NULL;
+	}
+	if (tProcName != NULL) {
+		free(tProcName);
+		tProcName = NULL;
+	}
+	if (tCommand != NULL) {
+		free(tCommand);
+		tCommand = NULL;
+	}
+	if (tArgv != NULL) {
+		free(tArgv);
+		tArgv = NULL;
+	}
+
 }
-int _tmain(int argc, _TCHAR* argv[])
+int _tmain(DWORD argc, _TCHAR* argv[])
 {
 	DWORD dwError = 0;
 	if (!TokenInforUtil::TrySwitchTokenPriv(NULL,SE_DEBUG_NAME, TRUE,&dwError)) {
@@ -139,20 +182,15 @@ int _tmain(int argc, _TCHAR* argv[])
 	if (!TokenInforUtil::TrySwitchTokenPriv(NULL, SE_INCREASE_QUOTA_NAME, TRUE, &dwError)) {
 		printf("TryEnableIncreaseQuotaPriv,Error: %d\n", dwError);
 	}
-	// 打印令牌中的权限信息
-	HANDLE hToken1 = NULL;
-	OpenProcessToken(GetCurrentProcess(), MAXIMUM_ALLOWED, &hToken1);
-	if (!TokenInforUtil::HasAssignPriv(hToken1)) {
-		printf("没有assignprimarytoken权限\n");
-	}
 	if (argc < 2) {
 		Helper::print_usage();
 		return FALSE;
 	}
-	for (int i = 0; i < sizeof(ModuleList) / sizeof(TCHAR*); i++) {
+	TCHAR* tModule = NULL; // 模块
+	for (DWORD i = 0; i < sizeof(ModuleList) / sizeof(TCHAR*); i++) {
 		if (!_tcscmp(argv[1], ModuleList[i])) {
 			printf("ChooseModule:%ws\n", argv[1]);
-			tModule = (TCHAR*)malloc(sizeof(ModuleList[i]));
+			tModule = (TCHAR*)calloc(1,sizeof(ModuleList[i]));
 			_tcscpy(tModule, ModuleList[i]);
 			break;
 		}
@@ -166,6 +204,11 @@ int _tmain(int argc, _TCHAR* argv[])
 	}
 	else {
 		Helper::print_usage();
+	}
+	// 释放TCHAR指针
+	if (tModule != NULL) {
+		free(tModule);
+		tModule = NULL;
 	}
 	return FALSE;
 	
