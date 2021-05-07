@@ -150,8 +150,8 @@ BOOL HandleArgument(_TCHAR* tModuleArg,DWORD argc,_TCHAR* argv[]) {
 	else {
 		Helper::print_usage();
 	}
-	EXIT:
-	// 释放创建的TCHAR指针
+EXIT:
+	//释放创建的TCHAR指针
 	if (tUserName != NULL)
 	{
 		free(tUserName);
