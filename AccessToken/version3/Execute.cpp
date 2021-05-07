@@ -57,7 +57,8 @@ void Execute::create_process(HANDLE token, TCHAR* command, BOOL console_mode, SE
 	TCHAR window_station[100];
 	DWORD length_needed, sessionid = 1, returned_length;
 	HANDLE new_token, primary_token, current_process, current_process_token;
-
+	new_token = NULL;
+	primary_token = NULL;
 	// Create primary token
 	if (!DuplicateTokenEx(token, TOKEN_ALL_ACCESS, NULL, impersonation_level, TokenPrimary, &primary_token))
 	{
