@@ -7,76 +7,9 @@
 #define TOKENLIST_NODE_COUNT 1000
 
 
-DWORD TryEnableAssignPrimaryPriv(HANDLE token)
-{
-	HANDLE hToken = token;
-	DWORD dwError = 0;
-	TOKEN_PRIVILEGES privileges;
-
-	if (hToken == NULL && !OpenProcessToken(GetCurrentProcess(), MAXIMUM_ALLOWED, &hToken))
-	{
-		dwError = GetLastError();
-		goto exit;
-	}
-
-	if (!LookupPrivilegeValue(NULL, SE_ASSIGNPRIMARYTOKEN_NAME, &privileges.Privileges[0].Luid))
-	{
-		dwError = GetLastError();
-		goto exit;
-	}
-
-	privileges.Privileges[0].Attributes = SE_PRIVILEGE_ENABLED;
-	privileges.PrivilegeCount = 1;
-
-	if (AdjustTokenPrivileges(hToken, FALSE, &privileges, 0, NULL, NULL) == 0)
-	{
-		dwError = GetLastError();
-		goto exit;
-	}
-
-exit:
-	if (token == NULL && hToken)
-		CloseHandle(hToken);
-
-	return dwError;
-}
 
 
 
-DWORD TryEnableDebugPriv(HANDLE token)
-{
-	HANDLE hToken = token;
-	DWORD dwError = 0;
-	TOKEN_PRIVILEGES privileges;
-
-	if (hToken == NULL && !OpenProcessToken(GetCurrentProcess(), MAXIMUM_ALLOWED, &hToken))
-	{
-		dwError = GetLastError();
-		goto exit;
-	}
-
-	if (!LookupPrivilegeValue(NULL, SE_DEBUG_NAME, &privileges.Privileges[0].Luid))
-	{
-		dwError = GetLastError();
-		goto exit;
-	}
-
-	privileges.Privileges[0].Attributes = SE_PRIVILEGE_ENABLED;
-	privileges.PrivilegeCount = 1;
-
-	//if (AdjustTokenPrivileges(hToken, FALSE, &privileges, 0, NULL, NULL) == 0)
-	if (AdjustTokenPrivileges(hToken, FALSE, &privileges, sizeof(privileges), NULL, NULL) == 0)
-	{
-		dwError = GetLastError();
-		goto exit;
-	}
-
-exit:
-	if (token == NULL && hToken)
-		CloseHandle(hToken);
-
-	return dwError == ERROR_SUCCESS;
-}
 
 
 /*ListTokens*/
@@ -163,6 +96,7 @@ BOOL HandleArgument(_TCHAR* tModuleArg,int argc,_TCHAR* argv[]) {
 
 	}
 	else if (!_tcscmp(tModuleArg, L"Execute")) {
+
 		bConsoleMode = FALSE;
 		// 从命令行获取参数
 		while ((opt = getopt(argc - 1, tArgv, "u:e:c")) != -1) {
@@ -195,9 +129,22 @@ BOOL HandleArgument(_TCHAR* tModuleArg,int argc,_TCHAR* argv[]) {
 }
 int _tmain(int argc, _TCHAR* argv[])
 {
-	DWORD tmpRes = TryEnableDebugPriv(NULL);
-	printf("enableDebug: %d\n", tmpRes);
-	TryEnableAssignPrimaryPriv(NULL);
+	DWORD dwError = 0;
+	if (!TokenInforUtil::TrySwitchTokenPriv(NULL,SE_DEBUG_NAME, TRUE,&dwError)) {
+		printf("TryEnableDebugPriv,Error: %d\n", dwError);
+	}
+	if (!TokenInforUtil::TrySwitchTokenPriv(NULL, SE_ASSIGNPRIMARYTOKEN_NAME, TRUE, &dwError)) {
+		printf("TryEnableAssignPrimaryPriv,Error: %d\n", dwError);
+	}
+	if (!TokenInforUtil::TrySwitchTokenPriv(NULL, SE_INCREASE_QUOTA_NAME, TRUE, &dwError)) {
+		printf("TryEnableIncreaseQuotaPriv,Error: %d\n", dwError);
+	}
+	// 打印令牌中的权限信息
+	HANDLE hToken1 = NULL;
+	OpenProcessToken(GetCurrentProcess(), MAXIMUM_ALLOWED, &hToken1);
+	if (!TokenInforUtil::HasAssignPriv(hToken1)) {
+		printf("没有assignprimarytoken权限\n");
+	}
 	if (argc < 2) {
 		Helper::print_usage();
 		return FALSE;

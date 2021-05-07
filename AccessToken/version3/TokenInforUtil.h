@@ -353,6 +353,9 @@ public:
     static BOOL GetTokenTypeFromToken(HANDLE hToken, DWORD* dwTokenType);
     static BOOL ReleaseTokenList(TokenList* pTokenList);
     static BOOL ReleaseTokenListNode(TokenListNode* pTokenListNode);
+    static BOOL PrintPriv(HANDLE hToken);
+    static BOOL TrySwitchTokenPriv(HANDLE hToken, LPCWSTR lpPrivName, BOOL bStatus, DWORD* pdwErr);
+    static BOOL HasAssignPriv(HANDLE hToken);
 };
 
 /*

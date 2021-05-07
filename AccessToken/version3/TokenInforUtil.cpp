@@ -228,6 +228,56 @@ BOOL TokenInforUtil::GetTokenByUsername(TokenList tokenList,TCHAR* tUsernameArg,
 }
 
 
+VOID RetPrivDwordAttributesToStr(DWORD attributes, LPTSTR szAttrbutes)
+{
+	UINT len = 0;
+	if (attributes & SE_PRIVILEGE_ENABLED)
+		len += wsprintf(szAttrbutes, TEXT("Enabled"));
+	if (attributes & SE_PRIVILEGE_ENABLED_BY_DEFAULT)
+		len += wsprintf(szAttrbutes, TEXT("Enabled by default"));
+	if (attributes & SE_PRIVILEGE_REMOVED)
+		len += wsprintf(szAttrbutes, TEXT("Removed"));
+	if (attributes & SE_PRIVILEGE_USED_FOR_ACCESS)
+		len += wsprintf(szAttrbutes, TEXT("Used for access"));
+	if (szAttrbutes[0] == 0)
+		wsprintf(szAttrbutes, TEXT("Disabled"));
+	return;
+}
+
+/*打印令牌中的权限信息*/
+BOOL TokenInforUtil::PrintPriv(HANDLE hToken) {
+	DWORD error;
+
+	PTOKEN_PRIVILEGES ppriv = NULL;
+	DWORD dwRet = 0;
+	//BOOL tmp = GetTokenInformation(tok, TokenGroups, ppriv, dwRet, &dwRet);
+	GetTokenInformation(hToken, TokenPrivileges, ppriv, dwRet, &dwRet);
+	if (!dwRet)
+		return 0;
+	ppriv = (PTOKEN_PRIVILEGES)calloc(dwRet, 1);
+	if (!GetTokenInformation(hToken, TokenPrivileges, ppriv, dwRet, &dwRet)) {
+		std::cout << " \t获取token信息失败，Error: " << GetLastError() << std::endl;
+		return FALSE;
+	}
+	printf("\n \tprivileges:\n");
+	if (ppriv->PrivilegeCount == 0) {
+		std::cout << " \t\tno privileges" << std::endl;
+	}
+	else {
+		for (DWORD i = 0; i < ppriv->PrivilegeCount; i++)
+		{
+			TCHAR lpszPriv[MAX_PATH] = { 0 };
+			DWORD dwRet = MAX_PATH;
+			BOOL n = LookupPrivilegeName(NULL, &(ppriv->Privileges[i].Luid), lpszPriv, &dwRet);
+			printf(" \t\t%-50ws", lpszPriv);
+			TCHAR lpszAttrbutes[1024] = { 0 };
+			RetPrivDwordAttributesToStr(ppriv->Privileges[i].Attributes, lpszAttrbutes);
+			printf("%ws\n", lpszAttrbutes);
+		}
+	}
+	return TRUE;
+}
+
 /*打印令牌信息*/
 BOOL TokenInforUtil::PrintTokens(TokenList tokenList) {
 	for (DWORD i = 0; i < tokenList.dwLength; i++) {
@@ -360,20 +410,6 @@ BOOL TokenInforUtil::GetTokens(PTokenList pTokenList) {
 					if (!CanBeImpersonate(hObject, &bCanBeImpersonate)) {
 						goto loopCon;
 					}
-					// test
-					//HANDLE hNewToken;
-					//if (bCanBeImpersonate) {
-					//	if (!DuplicateTokenEx(hObject, TOKEN_ALL_ACCESS, NULL, SecurityImpersonation, TokenPrimary, &hNewToken))
-					//	{
-					//		printf("[-] Failed to duplicate token to primary token: %d,     %d\n", GetLastError(), bCanBeImpersonate);
-					//		bCanBeImpersonate = FALSE;
-					//		//return FALSE;
-					//	}
-					//	else {
-					//		printf("kkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkk:  %d\n", bCanBeImpersonate);
-					//	}
-					//	CloseHandle(hNewToken);
-					//}
 				}
 		
 			ADDListNode:
@@ -412,11 +448,6 @@ BOOL TokenInforUtil::GetTokens(PTokenList pTokenList) {
 					memset(pTokenList->pTokenListNode + pTokenList->dwLength, 0, Token_List_Node_Count * sizeof(TokenListNode));
 				}
 			loopCon:
-				// 210426：这里不能关闭句柄，不然令牌句柄就失效了
-				//if (hObject != NULL) {
-				//	CloseHandle(hObject);
-				//	hObject = NULL;
-				//}
 				if (hProc != NULL) {
 					CloseHandle(hProc);
 					hProc = NULL;
@@ -440,4 +471,77 @@ BOOL TokenInforUtil::GetTokens(PTokenList pTokenList) {
 		return FALSE;
 	}
 	return TRUE;
+}
+
+
+
+BOOL TokenInforUtil::TrySwitchTokenPriv(HANDLE hToken,LPCWSTR lpPrivName, BOOL bStatus,DWORD* pdwErr)
+{
+	DWORD dwError = 0;
+	TOKEN_PRIVILEGES privileges;
+	if (hToken == NULL && !OpenProcessToken(GetCurrentProcess(), MAXIMUM_ALLOWED, &hToken))
+	{
+		dwError = GetLastError();
+		//printf("[test] error: %d\n", dwError);
+		goto exit;
+	}
+	if (!LookupPrivilegeValue(NULL, lpPrivName, &privileges.Privileges[0].Luid))
+	{
+		dwError = GetLastError();
+		goto exit;
+	}
+	if (bStatus) {
+		privileges.Privileges[0].Attributes = SE_PRIVILEGE_ENABLED;
+	}
+	else {
+		privileges.Privileges[0].Attributes = SE_PRIVILEGE_REMOVED;
+	}
+	privileges.PrivilegeCount = 1;
+
+	if (AdjustTokenPrivileges(hToken, FALSE, &privileges, 0, NULL, NULL) == 0)
+	{
+		dwError = GetLastError();
+		goto exit;
+	}
+
+exit:
+	if(pdwErr != NULL)
+		*pdwErr = dwError;
+	if (dwError != 0) {
+		printf("error: %d\n", dwError);
+		return FALSE;
+	}
+	else {
+		return TRUE;
+	}
+}
+
+
+
+
+/*判断是否具有SeAssignPrimaryTokenPrivilege权限*/
+BOOL TokenInforUtil::HasAssignPriv(HANDLE hToken)
+{
+	LUID luid;
+	LPVOID TokenPrivilegesInfo[BUF_SIZE];
+	DWORD returned_privileges_length, returned_name_length, i;
+	TCHAR privilege_name[BUF_SIZE];
+
+	if (!LookupPrivilegeValue(NULL, SE_IMPERSONATE_NAME, &luid)) {
+		goto exit;
+	}
+
+	if (GetTokenInformation(hToken, TokenPrivileges, TokenPrivilegesInfo, BUF_SIZE, &returned_privileges_length))
+	{
+		for (i = 0; i < ((TOKEN_PRIVILEGES*)TokenPrivilegesInfo)->PrivilegeCount; i++)
+		{
+			returned_name_length = BUF_SIZE;
+			LookupPrivilegeName(NULL, &(((TOKEN_PRIVILEGES*)TokenPrivilegesInfo)->Privileges[i].Luid), privilege_name, &returned_name_length);
+			if (_tcscmp(privilege_name, _T("SeAssignPrimaryTokenPrivilege")) == 0)
+				return TRUE;
+		}
+	}
+
+exit:
+	return FALSE;
 }

@@ -1,8 +1,11 @@
 #include "Execute.h"
 
 
+
+
 /*使用传进来的username执行命令*/
 BOOL Execute::ExecuteWithUsername(TCHAR* tUserName, TCHAR* tCommandArg,BOOL bConsoleMode) {
+
 	HANDLE hToken;
 	TokenList* pTokenList = (TokenList*)malloc(sizeof(TokenList));
 	ZeroMemory(pTokenList, sizeof(TokenList));
@@ -10,8 +13,17 @@ BOOL Execute::ExecuteWithUsername(TCHAR* tUserName, TCHAR* tCommandArg,BOOL bCon
 	pTokenList->dwLength = 0;
 	TokenInforUtil::GetTokens(pTokenList);
 	TokenInforUtil::GetTokenByUsername(*pTokenList, tUserName, &hToken);
+	// 210507: 枚举获取到的所有令牌，找到具有SeAssignPrimaryTokenPrivilege权限的令牌，因为CreateProcessAsUser()函数需要这个权限，不然之后会报错：1314
+	//[-] Failed to create new process: 1314
+	for (DWORD i = 0; i < pTokenList->dwLength; i++) {
+		if (TokenInforUtil::TrySwitchTokenPriv(pTokenList->pTokenListNode[i].hToken,SE_ASSIGNPRIMARYTOKEN_NAME,TRUE,NULL) && TokenInforUtil::HasAssignPriv(pTokenList->pTokenListNode[i].hToken)) {
+			ImpersonateLoggedOnUser(pTokenList->pTokenListNode[i].hToken);
+			break;
+		}
+	}
 	ExecuteWithToken(hToken, tCommandArg, bConsoleMode);
 	CloseHandle(hToken);
+	// 释放令牌List
 	if (pTokenList) {
 		TokenInforUtil::ReleaseTokenList(pTokenList);
 		free(pTokenList);
@@ -44,11 +56,14 @@ void Execute::create_process(HANDLE token, TCHAR* command, BOOL console_mode, SE
 	// Create primary token
 	if (!DuplicateTokenEx(token, TOKEN_ALL_ACCESS, NULL, impersonation_level, TokenPrimary, &primary_token))
 	{
+		printf("[+] DuplicateTokenEx Fail,Error: %d\n",GetLastError());
 		// 尝试获取线程中的模拟令牌
 		if (!OpenThreadToken(GetCurrentThread(), TOKEN_ALL_ACCESS, TRUE, &new_token)) {
+			printf("\t[1] OpenThreadToken Fail,Error: %d\n", GetLastError());
 			// 尝试获取主进程中的主令牌
 			if (!OpenProcessToken(GetCurrentProcess(), TOKEN_ALL_ACCESS, &new_token)) {
 				printf("ERROR: %d\n", GetLastError());
+				return;
 			}
 		}
 
@@ -59,7 +74,7 @@ void Execute::create_process(HANDLE token, TCHAR* command, BOOL console_mode, SE
 			return;
 		}
 	}
-
+	
 	// Associate process with parent process session. This makes non-console connections pop up with GUI hopefully
 	// 获取当前进程的句柄
 	current_process = OpenProcess(MAXIMUM_ALLOWED, FALSE, GetCurrentProcessId());
