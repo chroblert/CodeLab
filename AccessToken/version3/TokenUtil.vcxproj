@@ -155,6 +155,7 @@
     <ClInclude Include="Helper.h" />
     <ClInclude Include="ProcessInforUtil.h" />
     <ClInclude Include="settings.h" />
+    <ClInclude Include="StructureInfo.h" />
     <ClInclude Include="TokenInforUtil.h" />
     <ClInclude Include="TokenUtil.h" />
   </ItemGroup>

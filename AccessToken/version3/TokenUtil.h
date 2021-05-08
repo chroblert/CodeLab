@@ -6,8 +6,6 @@
 #include "TokenInforUtil.h"
 #include "Execute.h"
 #include "settings.h"
-//#define Token_List_Node_Count 1000
-
 
 extern BOOL bVerbose = FALSE;
 extern BOOL bPrivileges = FALSE;
