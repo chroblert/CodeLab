@@ -4,13 +4,7 @@
 #include <iostream>
 #include <tchar.h>
 #include "TokenUtil.h"
-#define TOKENLIST_NODE_COUNT 1000
-
-
-
-
-
-
+//#define TOKENLIST_NODE_COUNT 1000
 
 /*ListTokens*/
 BOOL ListTokens(_TCHAR* tUserName,BOOL bVerbose,DWORD dwPid,TCHAR* tProcName) {
@@ -195,10 +189,6 @@ int _tmain(DWORD argc, _TCHAR* argv[])
 	}
 	if (tModule != NULL) {
 		HandleArgument(tModule, argc, argv);
-		// 这里如果不注释掉会报错:CRT detected that the application wrote memory after end of heap buffer
-		// 难道是因为会无法释放全局变量
-		//free(tModule);
-		//tModule = NULL;
 	}
 	else {
 		Helper::print_usage();

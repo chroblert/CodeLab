@@ -3,6 +3,7 @@
 #include <Windows.h>
 #include <Psapi.h>
 #include <iostream>
+#include "settings.h"
 
 class ProcessInforUtil
 {

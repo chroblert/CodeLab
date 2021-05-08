@@ -14,13 +14,14 @@
 
 #include "atlstr.h"
 #include "ProcessInforUtil.h"
+#include "settings.h"
 
-#define BUF_SIZE 4096
+//#define BUF_SIZE 4096
 
-#define STATUS_SUCCESS ((NTSTATUS)0x00000000L)
-#define STATUS_INFO_LENGTH_MISMATCH             ((NTSTATUS)0xC0000004L)
-#define STATUS_BUFFER_OVERFLOW                  ((NTSTATUS)0x80000005L)
-#define NT_SUCCESS(x) ((x)>=0)
+//#define STATUS_SUCCESS ((NTSTATUS)0x00000000L)
+//#define STATUS_INFO_LENGTH_MISMATCH             ((NTSTATUS)0xC0000004L)
+//#define STATUS_BUFFER_OVERFLOW                  ((NTSTATUS)0x80000005L)
+//#define NT_SUCCESS(x) ((x)>=0)
 #pragma comment(lib,"Secur32.lib")
 #pragma comment(lib,"ntdll.lib") 
 
@@ -316,9 +317,9 @@ typedef NTSTATUS(WINAPI* NTOPENTHREADTOKEN)(
 
 typedef UNICODE_STRING OBJECT_NAME_INFORMATION;
 typedef UNICODE_STRING* POBJECT_NAME_INFORMATION;
-#define STATUS_NO_TOKEN 0xC000007C
+//#define STATUS_NO_TOKEN 0xC000007C
 
-#define InitializeObjectAttributes(ptr, root, attrib, name, desc, qos) { (ptr)->Length = sizeof(OBJECT_ATTRIBUTES);  (ptr)->RootDirectory = root; (ptr)->Attributes = attrib; (ptr)->ObjectName = name; (ptr)->SecurityDescriptor = desc; (ptr)->SecurityQualityOfService = qos; }
+//#define InitializeObjectAttributes(ptr, root, attrib, name, desc, qos) { (ptr)->Length = sizeof(OBJECT_ATTRIBUTES);  (ptr)->RootDirectory = root; (ptr)->Attributes = attrib; (ptr)->ObjectName = name; (ptr)->SecurityDescriptor = desc; (ptr)->SecurityQualityOfService = qos; }
 
 
 

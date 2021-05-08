@@ -1,5 +1,5 @@
 #include "ProcessInforUtil.h"
-#define PROCNAME_CHAR_COUNT 260
+//#define PROCNAME_CHAR_COUNT 260
 
 BOOL ProcessInforUtil::GetProcessNameFromPid(DWORD pid, TCHAR* tProcName) {
 	HANDLE hProc = OpenProcess(PROCESS_QUERY_INFORMATION, TRUE, pid);

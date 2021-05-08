@@ -5,7 +5,8 @@
 #include <Windows.h>
 #include "TokenInforUtil.h"
 #include "Execute.h"
-#define Token_List_Node_Count 1000
+#include "settings.h"
+//#define Token_List_Node_Count 1000
 
 
 extern BOOL bVerbose = FALSE;

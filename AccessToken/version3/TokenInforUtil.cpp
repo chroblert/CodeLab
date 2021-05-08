@@ -1,6 +1,6 @@
 #include "TokenInforUtil.h"
-#define DOMAIN_CHAR_COUNT 100
-#define USERNAME_CHAR_COUNT 50
+//#define DOMAIN_CHAR_COUNT 100
+//#define USERNAME_CHAR_COUNT 50
 
 BOOL TokenInforUtil::GetDomainUsernameFromToken(HANDLE hToken, char* full_name_to_return) {
 	LPVOID TokenUserInfo[BUF_SIZE];
@@ -350,11 +350,27 @@ BOOL TokenInforUtil::PrintTokens(TokenList tokenList) {
 }
 
 
+
+BOOL AddTokenListNode() {
+	return TRUE;
+}
+
+BOOL AddTokenList(PTokenList pDstTokenList, PTokenList pSrcTokenList) {
+	DWORD dwProcCountIncrPer = 1000;
+	DWORD dwProcList[1000] = { 0 };
+	DWORD dwProcCount = 0;
+	// [+]210508:存储进程的主令牌
+	for (DWORD dwTmpI = 0; dwTmpI < sizeof(dwProcList); dwTmpI++) {
+
+	}
+	return TRUE;
+
+}
 /*
 初始化TokenListNode
 */
-#define USERNAME_CHAR_COUNT 50
-#define PROCNAME_CHAR_COUNT 260
+//#define USERNAME_CHAR_COUNT 50
+//#define PROCNAME_CHAR_COUNT 260
 
 
 /*获取系统中的所有令牌*/
@@ -375,13 +391,12 @@ BOOL TokenInforUtil::GetTokens(PTokenList pTokenList) {
 	HANDLE hProc = NULL;
 	BOOL bCanBeImpersonate = FALSE;
 
-
-
 	if (pshi) {
 		status = NtQuerySystemInformation(SystemHandleInformation, pshi, sizeof(SYSTEM_HANDLE_INFORMATION_EX), NULL);
 		//printf("pshi->NumberOfHandles: %lu\n", pshi->NumberOfHandles);
 		for (ULONG r = 0; r < pshi->NumberOfHandles; r++)
 		{
+
 			// Token类型的值是5
 			if (pshi->Information[r].ObjectTypeNumber == 5)
 			{
@@ -488,7 +503,7 @@ BOOL TokenInforUtil::GetTokens(PTokenList pTokenList) {
 				(pTokenList->pTokenListNode + pTokenList->dwLength)->bCanBeImpersonate = bCanBeImpersonate;
 				
 				pTokenList->dwLength++;
-#define Token_List_Node_Count 1000
+//#define Token_List_Node_Count 1000
 				if ((pTokenList->dwLength % Token_List_Node_Count) == 0) {
 					pTokenList->pTokenListNode = (PTokenListNode)realloc(pTokenList->pTokenListNode, (pTokenList->dwLength / Token_List_Node_Count + 1)* Token_List_Node_Count*sizeof(TokenListNode));
 					memset(pTokenList->pTokenListNode + pTokenList->dwLength, 0, Token_List_Node_Count * sizeof(TokenListNode));
