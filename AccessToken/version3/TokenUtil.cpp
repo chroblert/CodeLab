@@ -20,7 +20,6 @@ BOOL ListTokens(_TCHAR* tUserName,BOOL bVerbose,DWORD dwPid,TCHAR* tProcName) {
 	pTokenList->dwLength = 0;
 	TokenInforUtil::GetTokens(pTokenList);
 	TokenList tokenList = *pTokenList;
-	BOOL bRres = dwPid == -1;
 	for (DWORD i = 0; i < tokenList.dwLength; i++) {
 		if (tUserName != NULL && tokenList.pTokenListNode[i].tUserName != nullptr && _tcscmp(tokenList.pTokenListNode[i].tUserName, tUserName) != 0) {
 			continue;
@@ -83,24 +82,24 @@ BOOL HandleArgument(_TCHAR* tModuleArg,DWORD argc,_TCHAR* argv[]) {
 		while ((opt = getopt(argc-1, tArgv, "p:P:t:lcvpu:e:")) != -1) {
 			switch (opt) {
 			case 'u':
-				printf("%c -> %S\n", opt, optarg);
+				printf("\t%c -> %S\n", opt, optarg);
 				tUserName = (TCHAR*)calloc(_tcslen(optarg)+1, sizeof(TCHAR));
 				_tcscpy(tUserName, optarg);
 				break;
 			case 'p': //列出指定pid或所有进程中的令牌
-				printf("%c -> %S\n", opt, optarg);
+				printf("\t%c -> %S\n", opt, optarg);
 				dwPid = _ttoi(optarg);
 				break;
 			case 'P':
-				printf("%c -> %S\n", opt, optarg);
+				printf("\t%c -> %S\n", opt, optarg);
 				tProcName = (TCHAR*)calloc(_tcslen(optarg)+1, sizeof(TCHAR));
 				_tcscpy(tProcName, optarg);
 				break;
 			case 't': //列出指定tid或所有线程中的模拟令牌
-				printf("%c -> %S\n", opt, optarg);
+				printf("\t%c -> %S\n", opt, optarg);
 				break;
 			case 'c': //列出当前进程的令牌信息
-				printf("%c -> %S\n", opt, optarg);
+				printf("\t%c -> %S\n", opt, optarg);
 				break;
 			default: //输出帮助文档
 				Helper::print_usage();
@@ -114,24 +113,27 @@ BOOL HandleArgument(_TCHAR* tModuleArg,DWORD argc,_TCHAR* argv[]) {
 
 	}
 	else if (!_tcscmp(tModuleArg, L"Execute")) {
+		if (argc <= 2) {
+			Helper::print_usage();
+			goto EXIT;
+		}
 
 		bConsoleMode = FALSE;
 		// 从命令行获取参数
 		while ((opt = getopt(argc - 1, tArgv, "u:e:c")) != -1) {
 			switch (opt) {
 			case 'u': //用户名
-				printf("%c -> %S\n", opt, optarg);
+				printf("\t%c -> %S\n", opt, optarg);
 				tUserName = (TCHAR*)calloc(_tcslen(optarg)+1,sizeof(TCHAR));
-				printf("%d\n", _tcslen(optarg));
 				_tcscpy(tUserName, optarg);
 				break;
 			case 'e': //列出当前进程的令牌信息
-				printf("%c -> %S\n", opt, optarg);
+				printf("\t%c -> %S\n", opt, optarg);
 				tCommand = (TCHAR*)calloc(_tcslen(optarg)+1,sizeof(TCHAR));
 				_tcscpy(tCommand, optarg);
 				break;
 			case 'c':
-				printf("%c -> 1\n", opt);
+				printf("\t%c -> 1\n", opt);
 				bConsoleMode = TRUE;
 				break;
 			default: //输出帮助文档

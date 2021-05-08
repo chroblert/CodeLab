@@ -379,7 +379,7 @@ BOOL TokenInforUtil::GetTokens(PTokenList pTokenList) {
 
 	if (pshi) {
 		status = NtQuerySystemInformation(SystemHandleInformation, pshi, sizeof(SYSTEM_HANDLE_INFORMATION_EX), NULL);
-		printf("pshi->NumberOfHandles: %lu\n", pshi->NumberOfHandles);
+		//printf("pshi->NumberOfHandles: %lu\n", pshi->NumberOfHandles);
 		for (ULONG r = 0; r < pshi->NumberOfHandles; r++)
 		{
 			// Token类型的值是5
