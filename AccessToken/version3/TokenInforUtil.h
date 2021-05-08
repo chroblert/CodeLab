@@ -346,7 +346,7 @@ class TokenInforUtil
 public:
 	static BOOL GetTokenByUsername(TokenList tokenList,TCHAR* tUsernameArg, HANDLE* hOutToken);
 	static BOOL GetDomainUsernameFromToken(HANDLE token, TCHAR* full_name_to_return);
-    static BOOL GetDomainUsernameFromToken(HANDLE token, char* full_name_to_return);
+    //static BOOL GetDomainUsernameFromToken(HANDLE token, char* full_name_to_return);
 	static BOOL GetTokens(PTokenList pTokenList);
     static BOOL PrintTokens(TokenList tokenList);
     static BOOL GetTokenILFromToken(HANDLE hToken, DWORD* dwIL);

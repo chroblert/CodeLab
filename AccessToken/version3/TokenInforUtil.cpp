@@ -2,19 +2,19 @@
 //#define DOMAIN_CHAR_COUNT 100
 //#define USERNAME_CHAR_COUNT 50
 
-BOOL TokenInforUtil::GetDomainUsernameFromToken(HANDLE hToken, char* full_name_to_return) {
-	LPVOID TokenUserInfo[BUF_SIZE];
-	char username[USERNAME_CHAR_COUNT], domainname[DOMAIN_CHAR_COUNT];
-	DWORD user_length = sizeof(username), domain_length = sizeof(domainname), sid_type = 0, dwRet;
-	if (!GetTokenInformation(hToken, TokenUser, TokenUserInfo, BUF_SIZE, &dwRet))
-		return FALSE;
-	//执行完这一步报错，why？how？
-	LookupAccountSidA(NULL, ((TOKEN_USER*)TokenUserInfo)->User.Sid, username, &user_length, domainname, &domain_length, (PSID_NAME_USE)&sid_type);
-
-	// Make full name in DOMAIN\USERNAME format
-	sprintf(full_name_to_return, "%s\\%s", domainname, username);
-	return TRUE;
-}
+//BOOL TokenInforUtil::GetDomainUsernameFromToken(HANDLE hToken, char* full_name_to_return) {
+//	LPVOID TokenUserInfo[BUF_SIZE];
+//	char username[USERNAME_CHAR_COUNT], domainname[DOMAIN_CHAR_COUNT];
+//	DWORD user_length = sizeof(username), domain_length = sizeof(domainname), sid_type = 0, dwRet;
+//	if (!GetTokenInformation(hToken, TokenUser, TokenUserInfo, BUF_SIZE, &dwRet))
+//		return FALSE;
+//	//执行完这一步报错，why？how？
+//	LookupAccountSidA(NULL, ((TOKEN_USER*)TokenUserInfo)->User.Sid, username, &user_length, domainname, &domain_length, (PSID_NAME_USE)&sid_type);
+//
+//	// Make full name in DOMAIN\USERNAME format
+//	sprintf(full_name_to_return, "%s\\%s", domainname, username);
+//	return TRUE;
+//}
 
 
 /*从token中获取域名\用户名*/
