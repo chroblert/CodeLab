@@ -145,6 +145,7 @@
     <ClCompile Include="Execute.cpp" />
     <ClCompile Include="getopt.cpp" />
     <ClCompile Include="Helper.cpp" />
+    <ClCompile Include="ListTokens.cpp" />
     <ClCompile Include="ProcessInforUtil.cpp" />
     <ClCompile Include="TokenInforUtil.cpp" />
     <ClCompile Include="TokenUtil.cpp" />
@@ -153,6 +154,7 @@
     <ClInclude Include="Execute.h" />
     <ClInclude Include="getopt.h" />
     <ClInclude Include="Helper.h" />
+    <ClInclude Include="ListTokens.h" />
     <ClInclude Include="ProcessInforUtil.h" />
     <ClInclude Include="settings.h" />
     <ClInclude Include="StructureInfo.h" />

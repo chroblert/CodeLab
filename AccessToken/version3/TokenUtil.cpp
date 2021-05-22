@@ -8,19 +8,23 @@
 
 /*ListTokens*/
 BOOL ListTokens(_TCHAR* tUserName,BOOL bVerbose,DWORD dwPid,TCHAR* tProcName) {
+	// 声明并开辟空间
 	TokenList* pTokenList = (TokenList*)calloc(1,sizeof(TokenList));
-	//ZeroMemory(pTokenList, sizeof(TokenList));
 	pTokenList->pTokenListNode = (PTokenListNode)calloc(Token_List_Node_Count, sizeof(TokenListNode));
+	// token的数量初始为0
 	pTokenList->dwLength = 0;
 	TokenInforUtil::GetTokens(pTokenList);
 	TokenList tokenList = *pTokenList;
 	for (DWORD i = 0; i < tokenList.dwLength; i++) {
+		// 若传入了用户名，则判断是否为该令牌的用户名；若不是则跳过，继续循环
 		if (tUserName != NULL && tokenList.pTokenListNode[i].tUserName != nullptr && _tcscmp(tokenList.pTokenListNode[i].tUserName, tUserName) != 0) {
 			continue;
 		}
+		// 若传入了进程名字符串，则判断是该令牌的进程名是否包含该字符串；若不包含则跳过，继续循环
 		if (tProcName != NULL && tokenList.pTokenListNode[i].tProcName != nullptr && _tcsstr(tokenList.pTokenListNode[i].tProcName, tProcName) == NULL) {
 			continue;
 		}
+		// 若传入了进程ID，则判断是否为该令牌的进程ID；若不是则跳过，继续循环
 		if (dwPid != -1 && tokenList.pTokenListNode[i].dwPID != dwPid) {
 			continue;
 		}

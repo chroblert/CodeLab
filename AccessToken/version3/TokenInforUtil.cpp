@@ -394,8 +394,16 @@ BOOL TokenInforUtil::GetTokens(PTokenList pTokenList) {
 	if (pshi) {
 		status = NtQuerySystemInformation(SystemHandleInformation, pshi, sizeof(SYSTEM_HANDLE_INFORMATION_EX), NULL);
 		//printf("pshi->NumberOfHandles: %lu\n", pshi->NumberOfHandles);
+		DWORD tmpPid = 0;
 		for (ULONG r = 0; r < pshi->NumberOfHandles; r++)
 		{
+			// 用来获取每个进程（除了0）的主令牌
+			// TODO
+			if (pshi->Information[r].ProcessId != tmpPid){
+				// 获取主令牌
+	
+
+			}
 
 			// Token类型的值是5
 			if (pshi->Information[r].ObjectTypeNumber == 5)

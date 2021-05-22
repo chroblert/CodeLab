@@ -33,6 +33,9 @@
     <ClCompile Include="Execute.cpp">
       <Filter>源文件</Filter>
     </ClCompile>
+    <ClCompile Include="ListTokens.cpp">
+      <Filter>源文件</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="getopt.h">
@@ -57,6 +60,9 @@
       <Filter>头文件</Filter>
     </ClInclude>
     <ClInclude Include="StructureInfo.h">
+      <Filter>头文件</Filter>
+    </ClInclude>
+    <ClInclude Include="ListTokens.h">
       <Filter>头文件</Filter>
     </ClInclude>
   </ItemGroup>
