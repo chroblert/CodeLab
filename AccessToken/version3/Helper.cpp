@@ -25,7 +25,7 @@ Usage: TokenUtil.exe <module> [OPTION]
 [MODULE]	
 	Execute
 [OPTION]
-	-p <pid>: 列出某个进程中的令牌
+	-p <pid>: 以指定pid的token执行命令
 	-u <username>: 以某个用户执行命令，与-e <command>结合使用
 	-e <command> : 执行命令
 	-c: 是否在当前终端下执行

@@ -118,12 +118,16 @@ BOOL HandleArgument(_TCHAR* tModuleArg,DWORD argc,_TCHAR* argv[]) {
 
 		bConsoleMode = FALSE;
 		// 从命令行获取参数
-		while ((opt = getopt(argc - 1, tArgv, "u:e:c")) != -1) {
+		while ((opt = getopt(argc - 1, tArgv, "u:p:e:c")) != -1) {
 			switch (opt) {
 			case 'u': //用户名
 				printf("\t%c -> %S\n", opt, optarg);
 				tUserName = (TCHAR*)calloc(_tcslen(optarg)+1,sizeof(TCHAR));
 				_tcscpy(tUserName, optarg);
+				break;
+			case 'p':
+				printf("\t%c -> %S\n", opt, optarg);
+				dwPid = _ttoi(optarg);
 				break;
 			case 'e': //列出当前进程的令牌信息
 				printf("\t%c -> %S\n", opt, optarg);

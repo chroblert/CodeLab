@@ -184,11 +184,11 @@ BOOL TokenInforUtil::GetTokenILFromToken(HANDLE hToken, DWORD* dwIL) {
 	else {
 		//printf("\t获取令牌中的模拟等级失败，ERROR: %d\n", GetLastError());
 		*dwIL = -1;
-		if (pTokenIL != NULL) {
-			free(pTokenIL);
-			pTokenIL = NULL;
-		}
-		return FALSE;
+		//if (pTokenIL != NULL) {
+		//	free(pTokenIL);
+		//	pTokenIL = NULL;
+		//}
+		//return FALSE;
 	}
 	if (pTokenIL != NULL) {
 		free(pTokenIL);
@@ -399,10 +399,119 @@ BOOL TokenInforUtil::GetTokens(PTokenList pTokenList) {
 		{
 			// 用来获取每个进程（除了0）的主令牌
 			// TODO
+			// Info1. 句柄所在的进程ID
+			//(pTokenList->pTokenListNode + pTokenList->dwLength)->dwPID = pshi->Information[r].ProcessId;
+			// Info2. 句柄在进程句柄表中的offset
+			//(pTokenList->pTokenListNode + pTokenList->dwLength)->dwHandleOffset = pshi->Information[r].Handle;
+			// 打开进程句柄
 			if (pshi->Information[r].ProcessId != tmpPid){
+				tmpPid = pshi->Information[r].ProcessId;
 				// 获取主令牌
-	
-
+				hProc = OpenProcess(MAXIMUM_ALLOWED, FALSE, (DWORD)pshi->Information[r].ProcessId);
+				if (hProc == NULL) {
+					hProc = OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, FALSE, (DWORD)pshi->Information[r].ProcessId);
+					if (hProc == NULL) {
+						// 下个句柄
+						continue;
+					}
+				}
+				// Info3. 进程所在文件名
+				// 获取PID对应的进程名
+				tProcName = (TCHAR*)calloc(MAX_PATH, sizeof(TCHAR));
+				if (!tProcName) {
+					printf("\tcalloc失败，ERROR: %d\n", GetLastError());
+					return FALSE;
+				}
+				else {
+					if (!ProcessInforUtil::GetProcessNameFromPid((DWORD)pshi->Information[r].ProcessId, tProcName)) {
+						goto loopCon;
+					}
+				}
+				// 获取进程的主令牌
+				SetLastError(0);
+				HANDLE tmpHToken;
+				BOOL getToken = OpenProcessToken(hProc, TOKEN_DUPLICATE | TOKEN_ASSIGN_PRIMARY | TOKEN_QUERY, &tmpHToken);
+				if (getToken) {
+					//printf("[+] OpenProcessToken() success!\n");
+				}
+				else
+				{
+					//printf("[-] OpenProcessToken() Return Code: %i\n", getToken);
+					//printf("[-] OpenProcessToken() Error: %i\n", GetLastError());
+					// 报错Access Denied: 5的原因可能是当前正在模拟其他用户
+					// 查看当前模拟的是哪个用户
+					//if (OpenThreadToken(GetCurrentThread(), TOKEN_ALL_ACCESS,TRUE, &tmpHToken) == TRUE) {
+					//
+					//	// 从token中获取用户名
+					//	tUsername = (TCHAR*)calloc(DOMAIN_CHAR_COUNT + 1 + USERNAME_CHAR_COUNT + 1, sizeof(TCHAR));
+					//	if (!tUsername) {
+					//		printf("\tcalloc失败,ERROR: %d\n", GetLastError());
+					//		return FALSE;
+					//	}
+					//	else {
+					//		if (!GetDomainUsernameFromToken(tmpHToken, tUsername)) {
+					//			//(pTokenList->pTokenListNode + pTokenList->dwLength)->tUserName = (TCHAR*)calloc(_tcslen(tUsername) + 1, sizeof(TCHAR));
+					//			//_tcscpy((pTokenList->pTokenListNode + pTokenList->dwLength)->tUserName, tUsername);
+					//			goto loopCon;
+					//		}
+					//	}
+					//}
+					//else {
+					//	printf("[-] OpenThreadToken() Error: %i\n", GetLastError());
+					//}
+					goto loopCon;
+				}
+				// 复制主令牌到当前进程句柄表中
+				SetLastError(0);
+				if (!DuplicateTokenEx(tmpHToken, TOKEN_ADJUST_DEFAULT | TOKEN_ADJUST_SESSIONID | TOKEN_QUERY | TOKEN_DUPLICATE | TOKEN_ASSIGN_PRIMARY, NULL, SecurityImpersonation, TokenPrimary, &hObject)) {
+					printf("[-]Error:%d\n", GetLastError());
+					goto loopCon;
+				}
+				CloseHandle(tmpHToken);
+				// Info4. token句柄
+					// 从token中获取登录会话ID
+				dwRet = 0;
+				GetTokenInformation(hObject, TokenGroupsAndPrivileges, pTokenGroupsAndPrivileges, dwRet, &dwRet);
+				if (dwRet == 0) {
+					//printf("\tdwreterror,ERROR: %d\n", GetLastError());
+					goto loopCon;
+				}
+				else {
+					pTokenGroupsAndPrivileges = (PTOKEN_GROUPS_AND_PRIVILEGES)calloc(dwRet, 1);
+					if (!GetTokenInformation(hObject, TokenGroupsAndPrivileges, pTokenGroupsAndPrivileges, dwRet, &dwRet)) {
+						// Info5. 令牌所关联的登录会话
+						//(pTokenList->pTokenListNode + pTokenList->dwLength)->luLogonID = pTokenGroupsAndPrivileges->AuthenticationId;
+						goto loopCon;
+					}
+				}
+				// Info6. 用户名
+				// 从token中获取用户名
+				tUsername = (TCHAR*)calloc(DOMAIN_CHAR_COUNT + 1 + USERNAME_CHAR_COUNT + 1, sizeof(TCHAR));
+				if (!tUsername) {
+					printf("\tcalloc失败,ERROR: %d\n", GetLastError());
+					return FALSE;
+				}
+				else {
+					if (!GetDomainUsernameFromToken(hObject, tUsername)) {
+						//(pTokenList->pTokenListNode + pTokenList->dwLength)->tUserName = (TCHAR*)calloc(_tcslen(tUsername) + 1, sizeof(TCHAR));
+						//_tcscpy((pTokenList->pTokenListNode + pTokenList->dwLength)->tUserName, tUsername);
+						goto loopCon;
+					}
+				}
+				// Info7. 令牌模拟等级
+				// 获取令牌模拟等级
+				dwIL = -1;
+				if (!TokenInforUtil::GetTokenILFromToken(hObject, &dwIL)) {
+					//(pTokenList->pTokenListNode + pTokenList->dwLength)->dwIL = dwIL;
+					goto loopCon;
+				}
+				// Info8. 令牌是否可以被模拟
+				bCanBeImpersonate = FALSE;
+				if (!CanBeImpersonate(hObject, &bCanBeImpersonate)) {
+					goto loopCon;
+				}
+				goto ADDListNode;
+			
 			}
 
 			// Token类型的值是5
@@ -549,6 +658,10 @@ BOOL TokenInforUtil::TrySwitchTokenPriv(HANDLE hToken,LPCWSTR lpPrivName, BOOL b
 {
 	DWORD dwError = 0;
 	TOKEN_PRIVILEGES privileges;
+	BOOL isNull = FALSE;
+	if (hToken == NULL) {
+		isNull = TRUE;
+	}
 	if (hToken == NULL && !OpenProcessToken(GetCurrentProcess(), MAXIMUM_ALLOWED, &hToken))
 	{
 		dwError = GetLastError();
@@ -575,6 +688,10 @@ BOOL TokenInforUtil::TrySwitchTokenPriv(HANDLE hToken,LPCWSTR lpPrivName, BOOL b
 	}
 
 exit:
+	// 如果传进来没有传入hToken,则将新打开的token关闭
+	if (isNull) {
+		CloseHandle(hToken);
+	}
 	if(pdwErr != NULL)
 		*pdwErr = dwError;
 	if (dwError != 0) {
