@@ -20,7 +20,7 @@ Usage: TokenUtil.exe <module> [OPTION]
 	-p <pid>: 列出某个进程中的令牌
 	-P <procName>: 列出某个进程的令牌
 	-u <username>: 列出某个用户的令牌
-	-v : 详细模式
+	-v : 详细模式 // 不加-v，每个用户只输出一次
 
 example:
 	TokenUtils.exe ListTokens -u "NT AUTHORITY\SYSTEM" 

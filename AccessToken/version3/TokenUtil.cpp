@@ -7,7 +7,7 @@
 //#define TOKENLIST_NODE_COUNT 1000
 
 /*ListTokens*/
-BOOL ListTokens(_TCHAR* tUserName,BOOL bVerbose,DWORD dwPid,TCHAR* tProcName) {
+BOOL ListTokens(_TCHAR* tUserName,BOOL bVerbose,DWORD dwPid,TCHAR* tProcName,BOOL bIsVerbose) {
 	// 声明并开辟空间
 	TokenList* pTokenList = (TokenList*)calloc(1,sizeof(TokenList));
 	pTokenList->pTokenListNode = (PTokenListNode)calloc(Token_List_Node_Count, sizeof(TokenListNode));
@@ -15,7 +15,37 @@ BOOL ListTokens(_TCHAR* tUserName,BOOL bVerbose,DWORD dwPid,TCHAR* tProcName) {
 	pTokenList->dwLength = 0;
 	TokenInforUtil::GetTokens(pTokenList);
 	TokenList tokenList = *pTokenList;
+	
+	TCHAR** userList = NULL;
+	userList = (TCHAR**)calloc(USER_LIST_COUNT, sizeof(TCHAR*));
+	DWORD userListCount = 0;
+	BOOL userIsInUserList = FALSE;
 	for (DWORD i = 0; i < tokenList.dwLength; i++) {
+		if (!bIsVerbose) { // 不详细输出
+			// 判断用户是否已经输出过一次，若输出过，则跳过进入下一次循环
+			for (DWORD idx = 0; idx < userListCount; idx++) {
+				if (_tcscmp(userList[idx], tokenList.pTokenListNode[i].tUserName) == 0) {
+					userIsInUserList = TRUE;
+					break;
+				}
+			}
+			if (userIsInUserList) {
+				userIsInUserList = FALSE;
+				continue;
+			}
+			// 记录已经输出过一次的用户
+			if (tokenList.pTokenListNode[i].tUserName != nullptr) {
+				userList[userListCount] = (TCHAR*)calloc(_tcslen(tokenList.pTokenListNode[i].tUserName) + 1, sizeof(TCHAR));
+				_tcscpy(userList[userListCount], tokenList.pTokenListNode[i].tUserName);
+				userListCount++;
+
+				if ((userListCount % USER_LIST_COUNT) == 0) {
+					userList = (TCHAR**)realloc(userList, (userListCount / USER_LIST_COUNT + 1) * USER_LIST_COUNT * sizeof(TCHAR*));
+					memset(userList + userListCount, 0, USER_LIST_COUNT * sizeof(TCHAR*));
+				}
+			}
+		}
+		
 		// 若传入了用户名，则判断是否为该令牌的用户名；若不是则跳过，继续循环
 		if (tUserName != NULL && tokenList.pTokenListNode[i].tUserName != nullptr && _tcscmp(tokenList.pTokenListNode[i].tUserName, tUserName) != 0) {
 			continue;
@@ -64,6 +94,15 @@ BOOL ListTokens(_TCHAR* tUserName,BOOL bVerbose,DWORD dwPid,TCHAR* tProcName) {
 		free(pTokenList);
 		pTokenList = NULL;
 	}
+	// 释放userList
+	if (userList) {
+		for(DWORD idx = 0;idx<userListCount;idx++){
+			free(userList[idx]);
+			userList[idx] = NULL;
+		}
+		free(userList);
+		userList = NULL;
+	}
 	return TRUE;
 }
 
@@ -84,11 +123,12 @@ BOOL HandleArgument(_TCHAR* tModuleArg,DWORD argc,_TCHAR* argv[]) {
 	TCHAR* tUserName = NULL; // -u 用户名
 	TCHAR* tProcName = NULL; // -P 进程名
 	TCHAR* tCommand = NULL; // -e 命令
+	BOOL bIsVerbose = FALSE; // -v
 	//TCHAR* optStr = NULL;
 	// 判断传进来的是哪一个module
 	if (!_tcscmp(tModuleArg, L"ListTokens")) {
 		// 从命令行获取参数
-		while ((opt = getopt(argc-1, tArgv, "p:P:t:lcvpu:e:")) != -1) {
+		while ((opt = getopt(argc-1, tArgv, "p:P:cvu:")) != -1) {
 			switch (opt) {
 			case 'u':
 				printf("\t%c -> %S\n", opt, optarg);
@@ -104,11 +144,12 @@ BOOL HandleArgument(_TCHAR* tModuleArg,DWORD argc,_TCHAR* argv[]) {
 				tProcName = (TCHAR*)calloc(_tcslen(optarg)+1, sizeof(TCHAR));
 				_tcscpy(tProcName, optarg);
 				break;
-			case 't': //列出指定tid或所有线程中的模拟令牌
-				printf("\t%c -> %S\n", opt, optarg);
-				break;
 			case 'c': //列出当前进程的令牌信息
 				printf("\t%c -> %S\n", opt, optarg);
+				break;
+			case 'v': // 详细输出
+				printf("\t%c -> %S\n", opt, optarg);
+				bIsVerbose = TRUE;
 				break;
 			default: //输出帮助文档
 				Helper::print_usage();
@@ -116,7 +157,7 @@ BOOL HandleArgument(_TCHAR* tModuleArg,DWORD argc,_TCHAR* argv[]) {
 			}
 		}
 		// ListTokens
-		ListTokens(tUserName, TRUE,dwPid,tProcName);
+		ListTokens(tUserName, TRUE,dwPid,tProcName,bIsVerbose);
 	}
 	else if (!_tcscmp(tModuleArg, L"ListLogonSession")) {
 
@@ -126,7 +167,7 @@ BOOL HandleArgument(_TCHAR* tModuleArg,DWORD argc,_TCHAR* argv[]) {
 			Helper::print_usage();
 			goto EXIT;
 		}
-
+		bIsVerbose = FALSE;
 		bConsoleMode = FALSE;
 		// 从命令行获取参数
 		while ((opt = getopt(argc - 1, tArgv, "u:p:e:c")) != -1) {
