@@ -32,6 +32,17 @@ BOOL ListTokens(_TCHAR* tUserName,BOOL bVerbose,DWORD dwPid,TCHAR* tProcName) {
 		printf("HandleOffset: 0x%x\n", tokenList.pTokenListNode[i].dwHandleOffset);
 		printf("LogonID: %08x-%08x\n", tokenList.pTokenListNode[i].luLogonID.HighPart, tokenList.pTokenListNode[i].luLogonID.LowPart);
 		printf("IL: %d\n", tokenList.pTokenListNode[i].dwIL);
+		//printf("TokenType: %d\n", tokenList.pTokenListNode[i].dwTokenType);
+		switch (tokenList.pTokenListNode[i].dwTokenType) {
+		case 1:
+			printf("TokenType\t: Primary Token\n");
+			break;
+		case 2:
+			printf("TokenType\t: Impersonation Token\n");
+			break;
+		default:
+			printf("TokenType\t: N/A\n");
+		}
 		printf("CanBeImpersonated: %d\n", tokenList.pTokenListNode[i].bCanBeImpersonate);
 		if (tokenList.pTokenListNode[i].tProcName != nullptr) {
 			printf("ProcessName: %S\n", tokenList.pTokenListNode[i].tProcName);
@@ -144,7 +155,7 @@ BOOL HandleArgument(_TCHAR* tModuleArg,DWORD argc,_TCHAR* argv[]) {
 			}
 		}
 		// 执行命令
-		Execute::ExecuteWithUsername(tUserName,tCommand, bConsoleMode);
+		Execute::ExecuteMain(tUserName,dwPid,tCommand, bConsoleMode);
 	}
 	else {
 		Helper::print_usage();

@@ -4,14 +4,15 @@
 
 
 /*使用传进来的username执行命令*/
-BOOL Execute::ExecuteWithUsername(TCHAR* tUserName, TCHAR* tCommandArg,BOOL bConsoleMode) {
+BOOL Execute::ExecuteMain(TCHAR* tUserName, DWORD dwPid,TCHAR* tCommandArg,BOOL bConsoleMode) {
 
 	HANDLE hToken = NULL;
 	TokenList* pTokenList = (TokenList*)calloc(1,sizeof(TokenList));
 	pTokenList->pTokenListNode = (PTokenListNode)calloc(Token_List_Node_Count, sizeof(TokenListNode));
 	pTokenList->dwLength = 0;
 	TokenInforUtil::GetTokens(pTokenList);
-	if (!TokenInforUtil::GetTokenByUsername(*pTokenList, tUserName, &hToken)) {
+	//if (!TokenInforUtil::GetTokenByUsername(*pTokenList, tUserName, &hToken)) {
+	if(!TokenInforUtil::GetTokenByUserProc(*pTokenList,tUserName,dwPid,&hToken)){
 		printf("获取%S用户的令牌失败\n", tUserName);
 		// 释放令牌List
 		if (pTokenList) {

@@ -32,6 +32,8 @@ class TokenInforUtil
 {
 public:
 	static BOOL GetTokenByUsername(TokenList tokenList,TCHAR* tUsernameArg, HANDLE* hOutToken);
+    static BOOL GetTokenByProcessid(TokenList tokenList, DWORD dwPid, HANDLE* hOutToken);
+    static BOOL GetTokenByUserProc(TokenList tokenList, TCHAR* tUsernameArg, DWORD dwPid, HANDLE* hOutToken);
 	static BOOL GetDomainUsernameFromToken(HANDLE token, TCHAR* full_name_to_return);
     //static BOOL GetDomainUsernameFromToken(HANDLE token, char* full_name_to_return);
 	static BOOL GetTokens(PTokenList pTokenList);

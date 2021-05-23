@@ -11,7 +11,7 @@ class Execute
 {
 public:
 	static BOOL ExecuteWithToken(HANDLE hToken,TCHAR* tCommand,BOOL bConsoleMode);
-	static BOOL ExecuteWithUsername(TCHAR* tUsername, TCHAR* tCommand, BOOL bConsoleMode);
+	static BOOL ExecuteMain(TCHAR* tUsername, DWORD dwPid,TCHAR* tCommand, BOOL bConsoleMode);
 	static void CreateProcessWithPipeComm(HANDLE token, TCHAR* command);
 	static void CreateChildProcess(HANDLE token, TCHAR* command, PROCESS_INFORMATION* piProcInfo);
 	static DWORD WINAPI ReadFromPipe(LPVOID p);

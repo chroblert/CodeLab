@@ -218,22 +218,6 @@ BOOL TokenInforUtil::GetTokenTypeFromToken(HANDLE hToken,DWORD* dwTokenType) {
 	}
 	if (GetTokenInformation(hToken, TokenType, pTokenTypeInfo, dwRet, &dwRet)) {
 		error = GetLastError();
-		switch ((DWORD)*pTokenTypeInfo) {
-		case 1:
-			printf(" \tTokenType\t: Primary Token\n");
-			break;
-		case 2:
-			printf(" \tTokenType\t: Impersonation Token\n");
-			break;
-		default:
-			printf(" \tTokenType\t: Error: %d\n", error);
-			*dwTokenType = -1;
-			if (pTokenTypeInfo != NULL) {
-				free(pTokenTypeInfo);
-				pTokenTypeInfo = NULL;
-			}
-			return FALSE;
-		}
 		*dwTokenType = *pTokenTypeInfo;
 		if (pTokenTypeInfo != NULL) {
 			free(pTokenTypeInfo);
@@ -269,6 +253,47 @@ BOOL TokenInforUtil::GetTokenByUsername(TokenList tokenList,TCHAR* tUsernameArg,
 		return FALSE;
 }
 
+/*根据进程ID获取令牌*/
+BOOL TokenInforUtil::GetTokenByProcessid(TokenList tokenList, DWORD dwPid, HANDLE* hOutToken) {
+	for (DWORD i = 0; i < tokenList.dwLength; i++) {
+		if (tokenList.pTokenListNode[i].tUserName == NULL) {
+			continue;
+		}
+		if (tokenList.pTokenListNode[i].bCanBeImpersonate != 1) {
+			continue;
+		}
+		if (dwPid != -1 && tokenList.pTokenListNode[i].dwPID == dwPid) {
+			*hOutToken = tokenList.pTokenListNode[i].hToken;
+			return TRUE;
+		}
+	}
+	if (*hOutToken == NULL)
+		return FALSE;
+}
+
+
+BOOL TokenInforUtil::GetTokenByUserProc(TokenList tokenList, TCHAR* tUsernameArg, DWORD dwPid, HANDLE* hOutToken) {
+	for (DWORD i = 0; i < tokenList.dwLength; i++) {
+		if (tokenList.pTokenListNode[i].tUserName == NULL) {
+			continue;
+		}
+		if (tokenList.pTokenListNode[i].bCanBeImpersonate != 1) {
+			continue;
+		}
+		if (tUsernameArg != NULL && _tcscmp(tokenList.pTokenListNode[i].tUserName, tUsernameArg) != 0) {
+			continue;
+		}
+		if (dwPid != -1 && tokenList.pTokenListNode[i].dwPID != dwPid) {
+			continue;
+		}
+		if (tokenList.pTokenListNode[i].bCanBeImpersonate == 1) {
+			*hOutToken = tokenList.pTokenListNode[i].hToken;
+			return TRUE;
+		}
+	}
+	if (*hOutToken == NULL)
+		return FALSE;
+}
 
 VOID RetPrivDwordAttributesToStr(DWORD attributes, LPTSTR szAttrbutes)
 {
@@ -386,6 +411,7 @@ BOOL TokenInforUtil::GetTokens(PTokenList pTokenList) {
 	TCHAR* tProcName = NULL;
 	DWORD dwRet = 0;
 	DWORD dwIL = -1;
+	DWORD dwTokenType = -1; //令牌类型，1：主令牌，2：模拟令牌
 	PTOKEN_GROUPS_AND_PRIVILEGES pTokenGroupsAndPrivileges = NULL;
 	HANDLE hObject = NULL;
 	HANDLE hProc = NULL;
@@ -467,6 +493,8 @@ BOOL TokenInforUtil::GetTokens(PTokenList pTokenList) {
 					printf("[-]Error:%d\n", GetLastError());
 					goto loopCon;
 				}
+				// Info9. 获取令牌类型
+				GetTokenTypeFromToken(tmpHToken, &dwTokenType);
 				CloseHandle(tmpHToken);
 				// Info4. token句柄
 					// 从token中获取登录会话ID
@@ -588,6 +616,9 @@ BOOL TokenInforUtil::GetTokens(PTokenList pTokenList) {
 					if (!CanBeImpersonate(hObject, &bCanBeImpersonate)) {
 						goto loopCon;
 					}
+					// Info9. 获取令牌类型
+					GetTokenTypeFromToken(hObject, &dwTokenType);
+					//system("pause");
 				}
 		
 			ADDListNode:
@@ -618,6 +649,8 @@ BOOL TokenInforUtil::GetTokens(PTokenList pTokenList) {
 				(pTokenList->pTokenListNode + pTokenList->dwLength)->dwIL = dwIL;
 				// Info8. 令牌是否可以被模拟
 				(pTokenList->pTokenListNode + pTokenList->dwLength)->bCanBeImpersonate = bCanBeImpersonate;
+				// Info9. 令牌类型，1：主令牌，2：模拟令牌
+				(pTokenList->pTokenListNode + pTokenList->dwLength)->dwTokenType = dwTokenType;
 				
 				pTokenList->dwLength++;
 //#define Token_List_Node_Count 1000
@@ -695,7 +728,7 @@ exit:
 	if(pdwErr != NULL)
 		*pdwErr = dwError;
 	if (dwError != 0) {
-		printf("error: %d\n", dwError);
+		//printf("error: %d\n", dwError);
 		return FALSE;
 	}
 	else {

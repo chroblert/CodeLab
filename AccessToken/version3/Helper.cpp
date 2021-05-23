@@ -22,6 +22,11 @@ Usage: TokenUtil.exe <module> [OPTION]
 	-u <username>: 列出某个用户的令牌
 	-v : 详细模式
 
+example:
+	TokenUtils.exe ListTokens -u "NT AUTHORITY\SYSTEM" 
+	TokenUtils.exe ListTokens -P "cmd"
+	TokenUtils.exe ListTokens -P "cmd" -u "NT AUTHORITY\SYSTEM" 
+
 [MODULE]	
 	Execute
 [OPTION]
@@ -29,6 +34,13 @@ Usage: TokenUtil.exe <module> [OPTION]
 	-u <username>: 以某个用户执行命令，与-e <command>结合使用
 	-e <command> : 执行命令
 	-c: 是否在当前终端下执行
-	-v : 详细模式)";
+	-v : 详细模式
+
+example:
+	TokenUtils.exe Execute -p <pid> -e whoami -c
+	TokenUtils.exe Execute -u "NT AUTHORITY\SYSTEM" -e whoami -c
+	TokenUtils.exe Execute -p <pid> -u "NT AUTHORITY\SYSTEM" -e whoami -c
+
+)";
 	printf("%s\n\n",rawUsageMsg);
 }
